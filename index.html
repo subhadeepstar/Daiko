@@ -107,24 +107,35 @@
         </div>
     </div>
     <div id="historySectionWrapper" class="app-section" style="display:none;">
-        <div class="card no-hover-effect" id="history-section">
-            <h4 style="cursor:pointer" onclick="toggleHistory()" aria-label="Toggle Transaction History">Transaction History <span id="historyToggleIcon">▼</span></h4>
-            <div id="history" style="display:none;">
-                 <table id="historyTable">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Description</th>
-                            <th>Amount</th>
-                            <th>Type</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        </tbody>
-                </table>
-            </div>
+
+    <div class="card no-hover-effect" id="daily-expenses-graph-section">
+        <h4 style="cursor:pointer" onclick="toggleDailyExpensesGraph()" aria-label="Toggle Daily Expenses Graph">Daily Expenses Graph <span id="dailyExpensesGraphToggleIcon">▼</span></h4>
+        <div id="dailyExpensesGraphContainer" style="display:none; padding-top: 10px;">
+            <canvas id="dailyBarChart" height="200"></canvas>
         </div>
     </div>
+
+    <div class="card no-hover-effect" id="history-section">
+        <h4 style="cursor:pointer" onclick="toggleHistory()" aria-label="Toggle Transaction History">Transaction History <span id="historyToggleIcon">▼</span></h4>
+        <div id="history" style="display:none;">
+             <table id="historyTable">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Amount</th>
+                        <th>Type</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>  
+
+
+     
     <div id="analyticsSectionWrapper" class="app-section" style="display:none;">
         <div class="card no-hover-effect" id="analytics-section">
             <h4>Expense Distribution</h4>
