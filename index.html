@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Budget Wallet</title>
+  <meta name="description" content="Track your monthly budget, income and expenses smartly with this sleek budget wallet app.">
+  <meta name="theme-color" content="#121212">
+  <link rel="manifest" href="/manifest.json">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/ml5@latest/dist/ml5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.0.9/dist/html5-qrcode.min.js"></script>
+</head>
+<body>
+  <div id="mainContentWrapper" style="position: relative; overflow: hidden;">
+    <div id="dashboardSectionWrapper" class="app-section active">
+        <h3 id="dashboard-section" style="text-align: center; color: var(--primary-color); margin-top: 10px; margin-bottom: 20px;"><span id="welcomeAvatar" class="profile-avatar" style="font-size: 1em; margin-right: 5px;"></span><span id="welcomeMessage"></span></h3>
+        <div class="total-balance">
+            Total Remaining Balance: <span id="currencySymbolTotalBalance">₹</span><span id="totalBalance">0.00</span>
+        </div>
+        <div id="dashboardGaugesContainer" class="dashboard-gauges-container">
+            <div class="gauge-widget">
+            <canvas id="investmentGaugeCanvas"></canvas>
+            <p class="gauge-label">Investment</p>
+            <p id="investmentPercentageText" class="gauge-percentage" style="color: var(--investment-gauge-color);">0%</p>
+            </div>
+            <div class="gauge-widget">
+            <canvas id="expenseGaugeCanvas"></canvas>
+            <p class="gauge-label">Manual Expenses</p>
+            <p id="expensePercentageText" class="gauge-percentage" style="color: var(--expense-gauge-color);">0%</p>
+            </div>
+            <div class="gauge-widget">
+            <canvas id="loanGaugeCanvas"></canvas>
+            <p class="gauge-label">Loan/EMI</p>
+            <p id="loanPercentageText" class="gauge-percentage" style="color: var(--loan-gauge-color);">0%</p>
+            </div>
+        </div>
+
+        <button id="toggleLogTransactionBtn" class="primary" style="width: 80%; display: block; margin: 20px auto; padding: 15px; font-size: 1.1em;">
+            <span id="logTransactionBtnIcon" style="margin-right: 8px;">₹</span>Log New Transaction
+        </button>
+
+        <div class="card no-hover-effect" id="logTransactionSectionCard" style="display:none;">
+            <h4>Log Transaction</h4>
+            <select id="payCategory" aria-label="Select Category for Payment"></select>
+            <input type="number" id="payAmount" placeholder="Enter amount" aria-label="Payment Amount" />
+
+            <div class="payment-method-options" style="margin-top: 10px; margin-bottom: 10px; display: flex; justify-content: space-around; align-items: center;">
+                <label style="cursor:pointer;">
+                    <input type="radio" name="paymentMethod" value="cash" checked> Cash
+                </label>
+                <label style="cursor:pointer;">
+                    <input type="radio" name="paymentMethod" value="scanAndPay"> Scan & Pay (QR)
+                </label>
+                <label style="cursor:pointer;">
+                    <input type="radio" name="paymentMethod" value="payViaUpiApp"> Pay via App
+                </label>
+            </div>
+            <button onclick="handlePay()" class="secondary" aria-label="Log Expense">Log Expense <span id="paymentActionText"></span></button>
+            <button onclick="revertLastTransaction()" class="danger" aria-label="Revert Last Transaction">Revert Last Transaction</button>
+        </div>
+        <div class="card no-hover-effect month-navigation">
+            <span id="currentDateDisplay"></span> <div class="month-nav-buttons">
+                <button onclick="changeMonth(-1)" class="secondary" aria-label="Previous Month">Previous Month</button>
+                <button onclick="changeMonth(1)" class="secondary" aria-label="Next Month">Next Month</button>
+            </div>
+            <div class="month-actions">
+                <button onclick="manualCopyFundsFromPreviousMonth()" class="secondary" id="copyFundsBtn" style="display:none;" aria-label="Copy Funds from Previous Month">Copy Last Month's Funds</button>
+            </div>
+        </div>
+
+        <div class="card no-hover-effect" id="monthlyIncomeCard"> <h4>Monthly Income & Expenses</h4>
+            <div class="income-expense-summary">
+                <div>
+                    <span>Income</span>
+                    <span class="amount"><span id="currencySymbolMonthlyIncome">₹</span><span id="displayMonthlyIncome">0.00</span></span>
+                </div>
+                <div>
+                    <span>Total Expenses</span>
+                    <span class="amount"><span id="currencySymbolTotalExpenses">₹</span><span id="displayTotalExpenses">0.00</span></span>
+                </div>
+            </div>
+            <input type="number" id="monthlyIncomeInput" placeholder="Enter/Update monthly income" aria-label="Monthly Income Input" />
+            <button onclick="setMonthlyIncome()" class="primary" aria-label="Set Monthly Income">Set Income</button>
+        </div>
+
+        <div class="card no-hover-effect" id="expenseFundsCard"> <h4>Expense Funds</h4>
+            <h5 style="text-align: center; color: var(--primary-color); margin-top: 20px;">Loan & EMI Funds</h5>
+            <div id="loanEmiFunds" class="fund-grid-container"></div>
+            <h5 style="text-align: center; color: var(--primary-color); margin-top: 20px;">Daily Expense Funds</h5>
+            <div id="dailyExpenseFunds" class="fund-grid-container"></div>
+        </div>
+
+        <div class="card no-hover-effect" id="investmentFundsCard"> <h4>Investment Funds</h4>
+            <div id="investmentFunds" class="fund-grid-container"></div>
+        </div>
+
+        <div class="card no-hover-effect" id="transferFundsCard"> <h4>Fund Transfer</h4>
+            <select id="transferFromCategory" aria-label="Transfer From Category"></select>
+            <select id="transferToCategory" aria-label="Transfer To Category"></select>
+            <input type="number" id="transferAmount" placeholder="Amount to transfer" aria-label="Transfer Amount" />
+            <button onclick="transferFunds()" class="primary" aria-label="Transfer Funds">Transfer Funds</button>
+        </div>
+    </div>
+    <div id="historySectionWrapper" class="app-section" style="display:none;">
+        <div class="card no-hover-effect" id="history-section">
+            <h4 style="cursor:pointer" onclick="toggleHistory()" aria-label="Toggle Transaction History">Transaction History <span id="historyToggleIcon">▼</span></h4>
+            <div id="history" style="display:none;">
+                 <table id="historyTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Description</th>
+                            <th>Amount</th>
+                            <th>Type</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div id="analyticsSectionWrapper" class="app-section" style="display:none;">
+        <div class="card no-hover-effect" id="analytics-section">
+            <h4>Expense Distribution</h4>
+            <div id="expenseSummaryText" class="expense-summary-text"></div>
+            <canvas id="expensePieChart"></canvas>
+            <button onclick="exportToPdf()" class="primary" style="margin-top: 20px;" aria-label="Download Current Statement">Download Current Statement</button>
+        </div>
+    </div>
+    <div id="settingsSectionWrapper" class="app-section" style="display:none;">
+        <div class="card no-hover-effect" id="settings-section">
+            <h4>Settings</h4>
+
+            <div class="settings-group">
+                <label for="darkModeToggleSwitchSettings">Theme:</label>
+                <div class="dark-mode-toggle" style="justify-content: flex-start; margin-bottom: 0;">
+                    <span>🌞 Light Mode</span>
+                    <label class="switch">
+                    <input type="checkbox" id="darkModeToggleSwitchSettings" aria-label="Toggle dark mode">
+                    <span class="slider"></span>
+                    </label>
+                    <span>🌙 Dark Mode</span>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <label for="currencySelect">Currency:</label>
+                <select id="currencySelect" onchange="updateCurrency()">
+                    <option value="INR">₹ Indian Rupee (INR)</option>
+                    <option value="USD">$ US Dollar (USD)</option>
+                    <option value="EUR">€ Euro (EUR)</option>
+                </select>
+            </div>
+
+            <div class="settings-group">
+                <label for="defaultPaymentAppSelect">Default Payment App (for direct open):</label>
+                <select id="defaultPaymentAppSelect" onchange="updateDefaultPaymentApp()">
+                    <option value="GPay">GPay</option>
+                    <option value="PhonePe">PhonePe</option>
+                    <option value="AmazonPay">Amazon Pay</option>
+                    </select>
+                <p style="font-size:0.8em; opacity:0.7; margin-top:5px;">Note: For 'Scan & Pay', your OS will choose the app for UPI links.</p>
+            </div>
+            <div class="settings-group">
+                <h5>User Profile</h5>
+                <div class="profile-display">
+                    <span id="profileAvatarDisplay" class="profile-avatar">👋</span>
+                    <div id="profileNameDisplay" class="profile-name">Guest</div>
+                    <div id="profileEmailDisplay" class="profile-email"></div>
+                </div>
+                <label for="userNameInput">User Name:</label>
+                <input type="text" id="userNameInput" placeholder="Enter your name" onkeyup="updateUserProfile()" aria-label="User Name" />
+
+                <label>Choose Avatar:</label>
+                <div class="avatar-options" id="avatarOptions">
+                    <span class="avatar-option" data-emoji="&#x1F473;">&#x1F473;</span> <span class="avatar-option" data-emoji="&#x1F466;">&#x1F466;</span> <span class="avatar-option" data-emoji="&#x1F467;">&#x1F467;</span> <span class="avatar-option" data-emoji="&#x1F468;">&#x1F468;</span> <span class="avatar-option" data-emoji="&#x1F469;">&#x1F469;</span> <span class="avatar-option" data-emoji="&#x1F471;">&#x1F471;</span> <span class="avatar-option" data-emoji="&#x1F9D1;">&#x1F9D1;</span> <span class="avatar-option" data-emoji="&#x1F9D3;">&#x1F9D3;</span> <span class="avatar-option" data-emoji="&#x1F9D4;">&#x1F9D4;</span> <span class="avatar-option" data-emoji="&#x1F47D;">&#x1F47D;</span> <span class="avatar-option" data-emoji="&#x1F916;">&#x1F916;</span>
+                </div>
+                <label for="userEmailInput">Email ID:</label>
+                <input type="email" id="userEmailInput" placeholder="Enter your email" onkeyup="updateUserProfile()" aria-label="User Email" />
+            </div>
+
+            <div class="settings-group">
+                <h5 style="cursor:pointer" onclick="toggleFaqSectionSettings()" aria-label="Toggle FAQ Section">Frequently Asked Questions <span id="faqToggleIconSettings">▼</span></h5>
+                <div id="faqContentSettings" style="display:none;">
+                    </div>
+            </div>
+
+            <div class="settings-group">
+                <h5>About the App</h5>
+                <div class="about-app-content">
+                    <p>Smart Budget Wallet helps you track your monthly income and expenses efficiently. Manage various funds, log transactions, and visualize your spending with ease.</p>
+                    <p>Version: 1.0.0</p>
+                </div>
+            </div>
+
+            <div class="settings-group" style="text-align:center; margin-top: 20px;">
+                <h5 style="margin-bottom:10px;">Data Management</h5>
+                <button onclick="resetData()" class="danger" aria-label="Reset All Data for Current Month">Reset All Data (Current Month)</button>
+            </div>
+
+        </div>
+    </div>
+    </div> <div id="faqContent" style="display:none;">
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            What is an "Expense Fund"? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            Expense Funds are categories you create to track your spending on specific items like "Groceries", "Utilities", "Entertainment", etc.
+        </div>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            What is an "Investment Fund"? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            Investment Funds are for tracking money allocated towards savings, stocks, mutual funds, or any other investment.
+        </div>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            How does "Auto-Deduct" work? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            "Auto-Deduct" is for fixed recurring payments like EMIs or monthly investments. If checked, the specified amount is automatically deducted at the start of each new month. You can also specify a "Due Day" for informational purposes.
+        </div>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            How do I revert a transaction? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            You can use the "Revert Last Transaction" button in the "Log Transaction" section to undo your most recent expense or fund transfer.
+        </div>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            Can I change my currency? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            Yes, you can change your preferred currency (USD, EUR, INR) in the "Settings" section.
+        </div>
+    </div>
+  </div>
+  <div class="floating-notification-area">
+      <span class="floating-notification-icon" onclick="toggleNotifications()">🔔</span>
+      <span class="notification-badge" id="notificationBadge">0</span>
+      <div class="notifications-dropdown" id="notificationsDropdown">
+          <p class="no-notifications">No new notifications.</p>
+      </div>
+  </div>
+
+  <button class="fab" onclick="openCreateFundModal()" aria-label="Add New Fund">+</button>
+  <button class="chatbot-fab" id="chatbotFab" aria-label="Open Chatbot">🤖</button>
+  <nav class="bottom-nav">
+    <button onclick="scrollToSection('dashboard-section')" class="active" id="navDashboardBtn" aria-label="Go to Dashboard">Dashboard</button>
+    <button onclick="scrollToSection('history-section')" id="navHistoryBtn" aria-label="Go to History">History</button>
+    <button onclick="scrollToSection('analytics-section')" id="navAnalyticsBtn" aria-label="Go to Analytics">Analytics</button>
+    <button onclick="scrollToSection('settings-section')" id="navSettingsBtn" aria-label="Go to Settings">Settings</button>
+  </nav>
+  <div class="chat-container" id="chatContainer">
+    <div class="chat-header">
+      Budget Bot
+      <button class="close-btn" id="closeChatBtn" aria-label="Close Chatbot">X</button>
+    </div>
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-message bot"><span>Hello! I'm your Smart Budget Wallet bot. How can I assist you today? Try asking about your 'balance' or how to 'add a fund'.</span></div>
+    </div>
+    <div class="chat-input-area">
+      <input type="text" id="chatInput" placeholder="Type a message..." aria-label="Chat input" />
+      <button id="micBtn" class="chat-icon-btn" aria-label="Start Speech Recognition">🎤</button> <button id="sendChatBtn" aria-label="Send message">Send</button>
+    </div>
+    <div class="chat-options">
+      <label class="switch">
+        <input type="checkbox" id="ttsToggle" checked>
+        <span class="slider round"></span>
+      </label>
+      <span>Enable Voice</span>
+    </div>
+  </div>
+  <div id="createFundModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>Create New Fund</h3>
+        <input type="text" id="modalNewFundName" placeholder="Fund name" aria-label="New Fund Name" />
+        <input type="number" id="modalNewFundAmount" placeholder="Initial amount" aria-label="New Fund Initial Amount" />
+        <div class="radio-group">
+            <span>Fund Type:</span>
+            <label><input type="radio" name="modalFundType" value="expense" checked onchange="toggleModalAutoDeductOptions()"> Expense</label>
+            <label><input type="radio" name="modalFundType" value="investment" onchange="toggleModalAutoDeductOptions()"> Investment</label>
+        </div>
+        <div class="checkbox-group">
+            <label><input type="checkbox" id="modalIsAutoDeduct" onchange="toggleModalAutoDeductOptions()"> Auto-Deduct (e.g., EMI)</label>
+        </div>
+        <div id="modalDueDayInputContainer" class="emi-amount-input">
+            <input type="number" id="modalNewFundDueDay" placeholder="Due Day of Month (1-31)" min="1" max="31" aria-label="New Fund Due Day" />
+        </div>
+        <div class="modal-buttons">
+            <button onclick="createFundFromModal()" class="primary">Create Fund</button>
+            <button onclick="closeCreateFundModal()" class="secondary">Cancel</button>
+        </div>
+    </div>
+  </div>
+
+  <div id="editFundModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3 id="editFundModalTitle">Edit Fund</h3>
+        <input type="hidden" id="editingFundNameOriginal">
+        <label for="editFundName" style="display:block; text-align:left; margin-bottom:5px;">Fund Name:</label>
+        <input type="text" id="editFundName" placeholder="Fund name" style="margin-bottom:15px;" />
+
+        <label for="editFundAmount" style="display:block; text-align:left; margin-bottom:5px;">Amount:</label>
+        <input type="number" id="editFundAmount" placeholder="Amount" style="margin-bottom:15px;" />
+
+        <div class="radio-group" id="editFundTypeGroup">
+            <span>Fund Type:</span>
+            <label><input type="radio" name="editFundType" value="expense"> Expense</label>
+            <label><input type="radio" name="editFundType" value="investment"> Investment</label>
+        </div>
+
+        <div class="checkbox-group" id="editFundAutoDeductGroup">
+            <label><input type="checkbox" id="editIsAutoDeduct" onchange="toggleEditDueDayVisibility()"> Auto-Deduct</label>
+        </div>
+
+        <div id="editDueDayInputContainer" class="emi-amount-input" style="margin-bottom:15px;">
+             <label for="editFundDueDay" style="display:block; text-align:left; margin-bottom:5px;">Due Day of Month:</label>
+            <input type="number" id="editFundDueDay" placeholder="Due Day (1-31)" min="1" max="31" />
+        </div>
+
+        <div class="modal-buttons">
+            <button onclick="saveEditedFund()" class="primary">Save Changes</button>
+            <button onclick="deleteFundFromEditModal()" class="danger">Delete Fund</button> <button onclick="closeEditFundModal()" class="secondary">Cancel</button>
+        </div>
+    </div>
+  </div>
+
+  <div id="customModal" class="modal-overlay">
+    <div class="modal-content">
+      <h3 id="modalTitle"></h3>
+      <p id="modalMessage"></p>
+      <div class="modal-buttons">
+        <button id="modalConfirmBtn" class="primary" style="display:none;" aria-label="Confirm Action">OK</button>
+        <button id="modalAlertBtn" class="primary" style="display:none;" aria-label="Acknowledge">OK</button>
+        <button id="modalCancelBtn" class="secondary" style="display:none;" aria-label="Cancel Action">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="qrScannerModal" class="modal-overlay">
+    <div class="modal-content">
+      <h3>Scan UPI QR Code</h3>
+      <div id="qrScannerView" style="width: 100%; max-width:300px; height: 250px; background-color: #eee; margin: 0 auto 15px auto; display:flex; align-items:center; justify-content:center; border: 1px solid var(--border-color); border-radius: 8px;">
+        <p style="color: var(--text-color); opacity: 0.7;">Initializing QR Scanner...</p>
+      </div>
+      <input type="file" id="qrFileInput" accept="image/*" style="display: none;">
+      <button onclick="document.getElementById('qrFileInput').click()" class="secondary" style="margin-bottom:10px;">Upload QR Image</button>
+      <p id="qrScanResult" style="font-size:0.9em; color: var(--text-color); word-break:break-all; min-height: 1.2em;"></p>
+      <div class="modal-buttons" style="margin-top:15px;">
+        <button onclick="closeQrScannerModal()" class="secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+  <div id="toastNotification" class="toast-notification"></div>
+  <script src="script.js"></script>
+</body>
+</html>

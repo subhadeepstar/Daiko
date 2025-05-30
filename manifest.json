@@ -1,0 +1,27 @@
+{
+  "name": "Smart Budget Wallet",
+  "short_name": "BudgetWallet",
+  "description": "Track your monthly budget, income and expenses smartly with this sleek budget wallet app.",
+  "start_url": "/Budget%20app%2010.html",
+  "display": "standalone",
+  "background_color": "#f5f5f5",
+  "theme_color": "#121212",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "budget.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "budget.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    },
+    {
+      "src": "budget.png",
+      "type": "image/png",
+      "sizes": "1024x1024"
+    }
+  ]
+}
