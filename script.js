@@ -17,7 +17,152 @@
         return date.toLocaleString('en-US', options);
     }
 
-    function getFullDateString(date) { // For display
+  function toggleDailyExpensesGraph() {
+    const graphContainer = document.getElementById('dailyExpensesGraphContainer');
+    const graphToggleIcon = document.getElementById('dailyExpensesGraphToggleIcon');
+    const isHidden = graphContainer.style.display === 'none';
+    graphContainer.style.display = isHidden ? 'block' : 'none';
+    graphToggleIcon.textContent = isHidden ? '▲' : '▼';
+    if (isHidden) {
+        renderDailyBarChart(); // Render the chart when it's made visible
+    }
+} 
+   function getDailyExpenseDataForChart() {
+    const currentMonthData = getCurrentMonthData();
+    const history = currentMonthData.history;
+    const dailyExpenses = {}; // Object to store expenses sum per day
+
+    const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
+    const labels = Array.from({ length: daysInMonth }, (_, i) => (i + 1).toString()); // Labels for days 1 to N
+
+    // Initialize expenses for all days to 0
+    labels.forEach(day => {
+        dailyExpenses[day] = 0;
+    });
+
+    history.forEach(transaction => {
+        // Consider relevant expense types
+        const expenseTypes = ['expense_cash', 'expense_scan_pay', 'expense_pay_via_app'];
+        // Optionally include EMI/Auto-deductions if they should appear as daily spikes:
+        // const expenseTypes = ['expense_cash', 'expense_scan_pay', 'expense_pay_via_app', 'emi_deduction_processed'];
+        
+        if (expenseTypes.includes(transaction.type) && transaction.amount > 0) {
+            const transactionDate = new Date(transaction.timestamp);
+            if (transactionDate.getMonth() === currentMonth.getMonth() &&
+                transactionDate.getFullYear() === currentMonth.getFullYear()) {
+                const dayOfMonth = transactionDate.getDate().toString();
+                dailyExpenses[dayOfMonth] += transaction.amount;
+            }
+        }
+    });
+
+    const data = labels.map(day => dailyExpenses[day] || 0); // Ensure order matches labels
+
+    return {
+        labels: labels,
+        data: data
+    };
+}
+ 
+function renderDailyBarChart() {
+    const chartData = getDailyExpenseDataForChart();
+    const ctx = document.getElementById('dailyBarChart').getContext('2d');
+    const currentCurrencySymbol = currencySymbols[appSettings.currency];
+
+    // Define the new text color for the bar chart
+    const barChartTextColor = '#FFBF00'; // Amber/Gold color
+
+    // Get theme-appropriate colors for other elements like background and borders
+    const primaryColorRGB = getComputedStyle(document.documentElement).getPropertyValue('--primary-color-rgb').trim();
+    // const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-color').trim(); // Keep for reference or other elements if needed, but bar chart will use barChartTextColor
+    const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color').trim();
+
+
+    if (dailyExpensesBarChart) {
+        dailyExpensesBarChart.destroy();
+    }
+
+    dailyExpensesBarChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: chartData.labels,
+            datasets: [{
+                label: `Daily Expenses (${currentCurrencySymbol})`,
+                data: chartData.data,
+                backgroundColor: `rgba(${primaryColorRGB}, 0.7)`,
+                borderColor: `rgb(${primaryColorRGB})`,
+                borderWidth: 1,
+                barThickness: 'flex',
+                maxBarThickness: 15
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    labels: {
+                        color: barChartTextColor // Use new color for legend labels
+                    }
+                },
+                tooltip: {
+                    titleColor: barChartTextColor, // Use new color for tooltip title
+                    bodyColor: barChartTextColor,  // Use new color for tooltip body
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                label += currentCurrencySymbol + context.parsed.y.toFixed(2);
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: `Amount (${currentCurrencySymbol})`,
+                        color: barChartTextColor // Use new color for Y-axis title
+                    },
+                    ticks: {
+                        color: barChartTextColor, // Use new color for Y-axis ticks
+                        callback: function(value) {
+                            return currentCurrencySymbol + value;
+                        }
+                    },
+                    grid: {
+                        color: gridColor,
+                        borderColor: gridColor
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Day of the Month',
+                        color: barChartTextColor // Use new color for X-axis title
+                    },
+                    ticks: {
+                        color: barChartTextColor // Use new color for X-axis ticks
+                    },
+                    grid: {
+                        display: false,
+                        borderColor: gridColor
+                    }
+                }
+            }
+        }
+    });
+}
+
+
+   function getFullDateString(date) { // For display
         const day = date.getDate();
         const month = date.toLocaleString('en-US', { month: 'long' });
         const year = date.getFullYear();
@@ -90,6 +235,7 @@
 
     // Initialize Chart.js pie chart instance
     let expensePieChart;
+    let dailyExpensesBarChart;
     // Dashboard Gauge Chart Instances
     let investmentGaugeChart, expenseGaugeChart, loanGaugeChart;
 
@@ -1454,6 +1600,14 @@ async function changeMonth(delta) {
     console.log("Final render call in changeMonth for:", newMonthString);
     render();
     console.log("changeMonth finished for:", newMonthString);
+    console.log("Final render call in changeMonth for:", newMonthString);
+    render(); // This will update data models
+
+    // If the daily bar chart is visible, re-render it for the new month's data
+    if (document.getElementById('dailyExpensesGraphContainer').style.display !== 'none') {
+        renderDailyBarChart();
+    }
+    console.log("changeMonth finished for:", newMonthString);
 }
     async function autoImportFundsForNewMonth() {
         const currentMonthData = getCurrentMonthData();
@@ -1842,6 +1996,10 @@ async function autoDeductEmiForCurrentMonth() {
         renderPieChart(getCurrentMonthData().categories);
         initializeDashboardGauges();
         renderDashboardGauges();
+
+        if (document.getElementById('dailyExpensesGraphContainer').style.display !== 'none') {
+            renderDailyBarChart();
+        }
     }
 
     function updateCurrency() {
@@ -3114,7 +3272,12 @@ function addNotification(message, id, type = 'info') {
             isSpeakingEnabled = false;
         }
 
-
+        const dailyExpensesGraphContainer = document.getElementById('dailyExpensesGraphContainer');
+                   const dailyExpensesGraphToggleIcon = document.getElementById('dailyExpensesGraphToggleIcon');
+                   if (dailyExpensesGraphContainer && dailyExpensesGraphToggleIcon) {
+                   dailyExpensesGraphToggleIcon.textContent = dailyExpensesGraphContainer.style.display === 'none' ? '▼' : '▲';
+                   }
+        
         document.getElementById('currencySelect').value = appSettings.currency;
         document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
         renderUserProfile();
