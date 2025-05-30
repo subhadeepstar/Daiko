@@ -1,3 +1,217 @@
+// STEP 1: FIREBASE INITIALIZATION
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyDTQ5xBCp0fNcQkLpp_66rcjlqqdbyFE8g", // Your actual API key
+  authDomain: "daikofi-pwa.firebaseapp.com",          // Your actual authDomain
+  projectId: "daikofi-pwa",                          // Your actual projectId
+  storageBucket: "daikofi-pwa.firebasestorage.app",    // Your actual storageBucket
+  messagingSenderId: "6320171744",                   // Your actual messagingSenderId
+  appId: "1:6320171744:web:efafd8b5f6003ce9d1fe85",   // Your actual appId
+  measurementId: "G-PT1M19NL78"                      // Your actual measurementId (optional)
+};
+
+// Initialize Firebase
+const app = firebase.initializeApp(firebaseConfig); // Uses the 'firebase' global object from SDK
+
+// Initialize Firebase services that you'll use
+const auth = firebase.auth();         // Firebase Authentication service
+const db = firebase.firestore();      // Firebase Firestore service (Cloud Firestore)
+const analytics = firebase.analytics(); // Firebase Analytics service (optional)
+
+console.log("Firebase initialized successfully!"); // For checking in the browser console
+
+let currentUser = null;
+let budgetListenerUnsubscribe = null; // To store the unsubscribe function for the Firestore listener
+
+// Modify your existing onAuthStateChanged function:
+auth.onAuthStateChanged(async user => {
+    const authStatusDisplay = document.getElementById('authStatusDisplay');
+    const authFormContainer = document.getElementById('authFormContainer');
+    const logoutButton = document.getElementById('logoutButton');
+    const profileEmailDisplay = document.getElementById('profileEmailDisplay');
+    const welcomeMessageEl = document.getElementById('welcomeMessage');
+    const welcomeAvatarEl = document.getElementById('welcomeAvatar');
+
+    // If there's an existing listener, unsubscribe from it first
+    if (budgetListenerUnsubscribe) {
+        console.log("Detaching existing Firestore listener.");
+        budgetListenerUnsubscribe();
+        budgetListenerUnsubscribe = null;
+    }
+
+    if (user) {
+        currentUser = user;
+        console.log("User logged in:", currentUser.uid, currentUser.email);
+
+        if (authStatusDisplay) authStatusDisplay.textContent = `Logged in as: ${currentUser.email}`;
+        if (profileEmailDisplay) profileEmailDisplay.textContent = currentUser.email;
+        if (profileNameDisplay) profileNameDisplay.textContent = userProfile.name; // Uses localStorage name
+        if (welcomeAvatarEl) welcomeAvatarEl.textContent = userProfile.avatar; // Uses localStorage avatar
+        let displayNameForWelcome = (userProfile.name && userProfile.name !== 'Guest') ? userProfile.name : currentUser.email.split('@')[0];
+        if (welcomeMessageEl) welcomeMessageEl.textContent = `Welcome, ${displayNameForWelcome}!`;
+        if (authFormContainer) authFormContainer.style.display = 'none';
+        if (logoutButton) logoutButton.style.display = 'block';
+        const emailAuthInput = document.getElementById('userEmailInput');
+        const passwordAuthInput = document.getElementById('userPasswordInput');
+        if (emailAuthInput) emailAuthInput.value = '';
+        if (passwordAuthInput) passwordAuthInput.value = '';
+
+        showToast('You are now logged in! Setting up real-time data sync...');
+
+        // --- Setup Real-time Listener ---
+        const docRef = db.collection('budgets').doc('sharedFamilyBudget');
+        budgetListenerUnsubscribe = docRef.onSnapshot(docSnap => {
+            console.log("Firestore real-time update received (onSnapshot).");
+            if (docSnap.exists) { // Remember: .exists is a property for compat libraries
+                console.log("Shared budget document found in Firestore (real-time)!");
+                const firestoreData = docSnap.data();
+                let dataChanged = false;
+
+                // Load and sanitize monthlyData
+                if (firestoreData.monthlyData) {
+                    // Simple check for changes; for deep objects, a proper deep-equal is better
+                    // For now, we'll just update if the field exists.
+                    // A more robust check: if(JSON.stringify(monthlyData) !== JSON.stringify(firestoreData.monthlyData))
+                    monthlyData = firestoreData.monthlyData;
+                    // Sanitize monthlyData fetched from Firestore
+                    for (const monthKey in monthlyData) {
+                        if (monthlyData.hasOwnProperty(monthKey)) {
+                            const month = monthlyData[monthKey];
+                            if (month.hasOwnProperty('income')) {
+                                month.income = parseFloat(month.income) || 0;
+                            }
+                            if (month.categories && Array.isArray(month.categories)) {
+                                month.categories.forEach(cat => {
+                                    cat.initialBalance = parseFloat(cat.initialBalance) || 0;
+                                    cat.balance = parseFloat(cat.balance) || 0;
+                                    cat.spent = parseFloat(cat.spent) || 0;
+                                    if (cat.hasOwnProperty('emiAmount')) {
+                                        cat.emiAmount = parseFloat(cat.emiAmount) || 0;
+                                    }
+                                    if (cat.hasOwnProperty('dueDay') && cat.dueDay !== null) {
+                                        cat.dueDay = parseInt(cat.dueDay, 10) || null;
+                                    }
+                                });
+                            }
+                            if (!month.history) month.history = [];
+                            if (!month.hasOwnProperty('emiDeducted')) month.emiDeducted = false;
+                            if (!month.hasOwnProperty('fundsImported')) month.fundsImported = false;
+                        }
+                    }
+                    dataChanged = true;
+                    console.log("monthlyData updated from Firestore (real-time).");
+                } else {
+                    // If monthlyData field is missing in Firestore but user is logged in,
+                    // it implies it was deleted from DB or never created. Re-initialize.
+                    monthlyData = JSON.parse(localStorage.getItem('monthlyData')) || {};
+                    console.log("No 'monthlyData' in Firestore (real-time). Using local/default.");
+                    // dataChanged might still be true if local differs from an empty cloud state
+                }
+
+                // Load and merge appSettings
+                if (firestoreData.appSettings) {
+                    const sharedSettings = firestoreData.appSettings;
+                    if (appSettings.currency !== sharedSettings.currency ||
+                        appSettings.defaultPaymentApp !== sharedSettings.defaultPaymentApp) {
+                        dataChanged = true;
+                    }
+                    appSettings.currency = sharedSettings.currency || appSettings.currency;
+                    appSettings.defaultPaymentApp = sharedSettings.defaultPaymentApp || appSettings.defaultPaymentApp;
+                    console.log("Shared appSettings updated from Firestore (real-time) and merged.");
+                } else {
+                     console.log("No 'appSettings' in Firestore (real-time). Using local/default.");
+                }
+
+                if (dataChanged) {
+                    showToast("Budget data synced from cloud.");
+                    document.getElementById('currencySelect').value = appSettings.currency;
+                    document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
+                    render(); // Re-render UI with new data
+                } else if (!docSnap.metadata.hasPendingWrites) { // Initial load might not show dataChanged yet
+                     // First snapshot after login (initial load) might not be flagged as "dataChanged" by simple checks above.
+                     // So, always render on the first successful fetch unless it's a local echo.
+                     // docSnap.metadata.hasPendingWrites is true if the change originated locally.
+                    console.log("Initial data load via onSnapshot or no effective change, rendering.");
+                    document.getElementById('currencySelect').value = appSettings.currency;
+                    document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
+                    render();
+                }
+
+            } else {
+                // Document sharedFamilyBudget does not exist
+                console.log("No shared budget document (real-time). Initializing local/default. Will be created on first save.");
+                monthlyData = JSON.parse(localStorage.getItem('monthlyData')) || {};
+                // Ensure full sanitization
+                for (const monthKey in monthlyData) { /* ... (full sanitization as in loadDataFromFirestore) ... */ }
+                appSettings = JSON.parse(localStorage.getItem('appSettings')) || {
+                    currency: 'INR', defaultPaymentApp: 'GPay', notifications: []
+                };
+                if (!appSettings.notifications) appSettings.notifications = [];
+                document.getElementById('currencySelect').value = appSettings.currency;
+                document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
+                render(); // Render with local/default data
+            }
+        }, error => {
+            console.error("Error in Firestore real-time listener: ", error);
+            showToast("Error syncing data. Please check connection.");
+            // Optionally, implement more robust error handling or fallback logic here.
+        });
+        // --- End of Real-time Listener Setup ---
+
+    } else {
+        // User is signed out.
+        currentUser = null;
+        console.log("User logged out. (onAuthStateChanged)");
+
+        if (authStatusDisplay) authStatusDisplay.textContent = 'Not logged in';
+        if (profileEmailDisplay) profileEmailDisplay.textContent = '';
+        if (profileNameDisplay) profileNameDisplay.textContent = 'Guest';
+        if (welcomeAvatarEl) welcomeAvatarEl.textContent = '👋';
+        if (welcomeMessageEl) welcomeMessageEl.textContent = `Welcome, Guest!`;
+        userProfile.name = 'Guest';
+        userProfile.email = '';
+        userProfile.avatar = '👋';
+        saveUserProfile(); // Save guest state to localStorage
+
+        if (authFormContainer) authFormContainer.style.display = 'block';
+        if (logoutButton) logoutButton.style.display = 'none';
+
+        // Reset to local data on logout
+        monthlyData = JSON.parse(localStorage.getItem('monthlyData')) || {};
+        // Ensure full sanitization
+        for (const monthKey in monthlyData) {
+             if (monthlyData.hasOwnProperty(monthKey)) {
+                const month = monthlyData[monthKey];
+                if (month.hasOwnProperty('income')) {
+                    month.income = parseFloat(month.income) || 0;
+                }
+                if (month.categories && Array.isArray(month.categories)) {
+                    month.categories.forEach(cat => {
+                        cat.initialBalance = parseFloat(cat.initialBalance) || 0;
+                        cat.balance = parseFloat(cat.balance) || 0;
+                        cat.spent = parseFloat(cat.spent) || 0;
+                        // ... etc. for all properties in category
+                    });
+                }
+                 if (!month.history) month.history = [];
+                 if (!month.hasOwnProperty('emiDeducted')) month.emiDeducted = false;
+                 if (!month.hasOwnProperty('fundsImported')) month.fundsImported = false;
+             }
+        }
+
+        appSettings = JSON.parse(localStorage.getItem('appSettings')) || {
+            currency: 'INR', defaultPaymentApp: 'GPay', notifications: []
+        };
+        if (!appSettings.notifications) appSettings.notifications = [];
+
+        document.getElementById('currencySelect').value = appSettings.currency;
+        document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
+
+        showToast("You are now logged out.");
+        render();
+    }
+});
+
 // service-worker.js registration (added here for completeness, usually in a separate file)
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
@@ -194,6 +408,30 @@ function renderDailyBarChart() {
         return `${dayInt}${suffix} ${monthName}`;
     }
 
+    function setupPasswordVisibilityToggle(passwordInputId, toggleButtonId) {
+    const togglePasswordButton = document.getElementById(toggleButtonId);
+    const passwordInput = document.getElementById(passwordInputId);
+
+    if (togglePasswordButton && passwordInput) {
+        const toggle = () => {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            // Ensure the icon text also updates correctly
+            togglePasswordButton.textContent = type === 'password' ? '👁️' : '🙈';
+        };
+
+        togglePasswordButton.addEventListener('click', toggle);
+        togglePasswordButton.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                toggle();
+            }
+        });
+    } else {
+        // This warning helps if IDs in HTML don't match
+        console.warn(`Password toggle elements not found for: input ID "${passwordInputId}" or button ID "${toggleButtonId}"`);
+    }
+}
 
     // Data structure to hold monthly data
     let monthlyData = JSON.parse(localStorage.getItem('monthlyData')) || {};
@@ -338,18 +576,137 @@ function renderDailyBarChart() {
         return monthlyData[monthYear];
     }
 
-    function saveData() {
-      localStorage.setItem('monthlyData', JSON.stringify(monthlyData));
-    }
+// Replace the existing saveData function with this:
+async function saveData() {
+  if (!currentUser) {
+    // If no user is logged in, fall back to localStorage for offline/guest use if desired,
+    // or simply don't save to the cloud. For now, let's keep saving to localStorage
+    // as a fallback, but ideally, cloud-dependent features would be disabled when logged out.
+    console.log("No user logged in. Saving monthlyData to localStorage.");
+    localStorage.setItem('monthlyData', JSON.stringify(monthlyData));
+    return; // Exit if no user to prevent Firestore errors
+  }
 
+  console.log("User logged in. Attempting to save monthlyData to Firestore...");
+  try {
+    // We are saving the entire monthlyData object under a 'monthlyData' field
+    // in our shared document. { merge: true } ensures we don't overwrite other fields
+    // like 'appSettings' in the same document.
+    await db.collection('budgets').doc('sharedFamilyBudget').set({
+      monthlyData: monthlyData
+    }, { merge: true });
+    console.log('monthlyData successfully saved to Firestore!');
+    // showToast('Budget data synced to cloud.'); // Optional: feedback to user
+  } catch (error) {
+    console.error("Error saving monthlyData to Firestore: ", error);
+    showToast('Error syncing budget data. Using local backup.');
+    // As a fallback or for offline, you might still save to localStorage
+    localStorage.setItem('monthlyData', JSON.stringify(monthlyData));
+  }
+}
     function saveUserProfile() {
         localStorage.setItem('userProfile', JSON.stringify(userProfile));
         renderUserProfile();
     }
 
-    function saveAppSettings() {
-        localStorage.setItem('appSettings', JSON.stringify(appSettings));
+// Replace the existing saveAppSettings function with this:
+async function saveAppSettings() {
+  if (!currentUser) {
+    console.log("No user logged in. Saving appSettings to localStorage.");
+    localStorage.setItem('appSettings', JSON.stringify(appSettings));
+    return; // Exit if no user
+  }
+
+  console.log("User logged in. Attempting to save appSettings to Firestore...");
+  // We only want to sync specific shared settings, e.g., currency and defaultPaymentApp.
+  // Notifications are usually device-specific and voluminous, so let's exclude them from Firestore sync for now.
+  const sharedSettings = {
+      currency: appSettings.currency,
+      defaultPaymentApp: appSettings.defaultPaymentApp
+      // Add any other settings you specifically want to sync
+  };
+
+  try {
+    await db.collection('budgets').doc('sharedFamilyBudget').set({
+      appSettings: sharedSettings // Save the filtered sharedSettings
+    }, { merge: true });
+    console.log('Shared appSettings successfully saved to Firestore!');
+    // showToast('App settings synced to cloud.'); // Optional
+  } catch (error) {
+    console.error("Error saving appSettings to Firestore: ", error);
+    showToast('Error syncing app settings. Using local backup.');
+    localStorage.setItem('appSettings', JSON.stringify(appSettings)); // Fallback
+  }
+}
+        // --- START: AUTHENTICATION FUNCTIONS ---
+
+    async function handleSignUpAttempt() {
+        // Using 'userEmailInput' and 'userPasswordInput' as per your integrated HTML
+        const emailInput = document.getElementById('userEmailInput');
+        const passwordInput = document.getElementById('userPasswordInput');
+        const email = emailInput.value;
+        const password = passwordInput.value;
+
+        if (!email || !password) {
+            showAlert('Please enter both email and password to sign up.');
+            return;
+        }
+        if (password.length < 6) {
+            showAlert('Password should be at least 6 characters long.');
+            return;
+        }
+
+        try {
+            // Show some loading state if you have one
+            showToast('Attempting to sign up...');
+            await auth.createUserWithEmailAndPassword(email, password);
+            // onAuthStateChanged will automatically handle the UI update and log success
+            // No need to call showToast here for success, onAuthStateChanged will reflect login.
+            // emailInput.value = ''; // Optionally clear fields
+            // passwordInput.value = '';
+        } catch (error) {
+            console.error("Sign Up Error:", error);
+            showAlert(`Sign up failed: ${error.message}`);
+        }
     }
+
+    async function handleLoginAttempt() {
+        const emailInput = document.getElementById('userEmailInput');
+        const passwordInput = document.getElementById('userPasswordInput');
+        const email = emailInput.value;
+        const password = passwordInput.value;
+
+        if (!email || !password) {
+            showAlert('Please enter both email and password to log in.');
+            return;
+        }
+
+        try {
+            // Show some loading state
+            showToast('Attempting to log in...');
+            await auth.signInWithEmailAndPassword(email, password);
+            // onAuthStateChanged will automatically handle the UI update and log success
+            // emailInput.value = ''; // Optionally clear fields
+            // passwordInput.value = '';
+        } catch (error) {
+            console.error("Login Error:", error);
+            showAlert(`Login failed: ${error.message}`);
+        }
+    }
+
+    async function handleLogoutAttempt() {
+        try {
+            showToast('Logging out...');
+            await auth.signOut();
+            // onAuthStateChanged will handle the UI update
+            // Additional cleanup (like clearing specific app data) can be done in onAuthStateChanged's "else" block
+        } catch (error) {
+            console.error("Logout Error:", error);
+            showAlert(`Logout failed: ${error.message}`);
+        }
+    }
+
+    // --- END: AUTHENTICATION FUNCTIONS ---
 
     // --- Dashboard Gauge Chart Functions ---
     function createGaugeChart(canvasId, initialPercentage, fillColor, trackColor) {
@@ -448,6 +805,114 @@ function renderDailyBarChart() {
         updateGaugeChart(loanGaugeChart, loanPercentage, 'loanPercentageText', 'var(--loan-gauge-color)');
     }
 
+    async function loadDataFromFirestore() {
+  if (!currentUser) {
+    console.log("No user logged in. Not loading data from Firestore.");
+    // The app will use data currently in 'monthlyData' and 'appSettings'
+    // (which would be from localStorage or default if no localStorage data was found).
+    // We still need to render to ensure UI consistency based on whatever is loaded locally.
+    render();
+    return;
+  }
+
+  console.log(`User ${currentUser.email} logged in. Attempting to load data from Firestore...`);
+  showToast("Loading your budget data..."); // Optional: loading indicator
+
+  try {
+    const docRef = db.collection('budgets').doc('sharedFamilyBudget');
+    const docSnap = await docRef.get();
+
+    if (docSnap.exists) {
+      console.log("Shared budget document found in Firestore!");
+      const firestoreData = docSnap.data();
+
+      // Load monthlyData
+      if (firestoreData.monthlyData) {
+        monthlyData = firestoreData.monthlyData;
+        // IMPORTANT: Sanitize monthlyData fetched from Firestore, just like you do for localStorage
+        for (const monthKey in monthlyData) {
+          if (monthlyData.hasOwnProperty(monthKey)) {
+            const month = monthlyData[monthKey];
+            if (month.hasOwnProperty('income')) {
+              month.income = parseFloat(month.income) || 0;
+            }
+            if (month.categories && Array.isArray(month.categories)) {
+              month.categories.forEach(cat => {
+                cat.initialBalance = parseFloat(cat.initialBalance) || 0;
+                cat.balance = parseFloat(cat.balance) || 0;
+                cat.spent = parseFloat(cat.spent) || 0;
+                if (cat.hasOwnProperty('emiAmount')) {
+                  cat.emiAmount = parseFloat(cat.emiAmount) || 0;
+                }
+                if (cat.hasOwnProperty('dueDay') && cat.dueDay !== null) {
+                  cat.dueDay = parseInt(cat.dueDay, 10) || null;
+                }
+              });
+            }
+            if (!month.history) month.history = []; // Ensure history array exists
+            if (!month.hasOwnProperty('emiDeducted')) month.emiDeducted = false;
+            if (!month.hasOwnProperty('fundsImported')) month.fundsImported = false;
+
+          }
+        }
+        console.log("monthlyData loaded and sanitized from Firestore.");
+      } else {
+        console.log("No 'monthlyData' field in Firestore document. Initializing locally.");
+        monthlyData = JSON.parse(localStorage.getItem('monthlyData')) || {}; // Fallback or initialize empty
+        // You might want to save an empty monthlyData structure to Firestore here if it's the very first load
+        // await saveData(); // This would create it if called
+      }
+
+      // Load appSettings
+      if (firestoreData.appSettings) {
+        // Merge with existing appSettings to keep local-only settings like notifications
+        const sharedSettings = firestoreData.appSettings;
+        appSettings.currency = sharedSettings.currency || appSettings.currency;
+        appSettings.defaultPaymentApp = sharedSettings.defaultPaymentApp || appSettings.defaultPaymentApp;
+        // appSettings.notifications remains from localStorage
+        console.log("Shared appSettings loaded from Firestore and merged.");
+      } else {
+        console.log("No 'appSettings' field in Firestore document. Using local/default appSettings.");
+        // appSettings will retain its localStorage or default values
+      }
+
+      showToast("Budget data loaded successfully!");
+    } else {
+      // Document sharedFamilyBudget does not exist
+      console.log("No shared budget document found in Firestore. Using local/default data. It will be created on first save.");
+      // Initialize with localStorage or defaults if no Firestore data exists yet
+      monthlyData = JSON.parse(localStorage.getItem('monthlyData')) || {};
+      appSettings = JSON.parse(localStorage.getItem('appSettings')) || {
+          currency: 'INR',
+          defaultPaymentApp: 'GPay',
+          notifications: []
+      };
+      if (!appSettings.notifications) appSettings.notifications = [];
+
+      // Perform initial sanitization for localStorage loaded data too
+      for (const monthKey in monthlyData) { /* ... (add full sanitization block here if needed) ... */ }
+    }
+  } catch (error) {
+    console.error("Error loading data from Firestore: ", error);
+    showToast('Error loading cloud data. Using local backup.');
+    // Fallback to localStorage if Firestore fetch fails
+    monthlyData = JSON.parse(localStorage.getItem('monthlyData')) || {};
+    appSettings = JSON.parse(localStorage.getItem('appSettings')) || {
+        currency: 'INR',
+        defaultPaymentApp: 'GPay',
+        notifications: []
+    };
+    if (!appSettings.notifications) appSettings.notifications = [];
+    // Perform initial sanitization for localStorage loaded data too
+    for (const monthKey in monthlyData) { /* ... (add full sanitization block here if needed) ... */ }
+  }
+
+  // Ensure UI is updated with whatever data has been loaded (Firestore or local fallback)
+  // This also updates currency selectors etc. based on loaded appSettings
+  document.getElementById('currencySelect').value = appSettings.currency;
+  document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
+  render();
+}
 
     function render() {
       saveData();
@@ -3258,7 +3723,9 @@ function addNotification(message, id, type = 'info') {
             isSpeakingEnabled = false;
             console.error("ttsToggle element not found!");
         }
-
+        
+        // Add this line, ensuring the IDs match your HTML for the auth password field
+    setupPasswordVisibilityToggle('userPasswordInput', 'togglePasswordVisibility');
 
         if ('speechSynthesis' in window) {
             synth = window.speechSynthesis;
