@@ -149,6 +149,15 @@ h3#dashboard-section {
     letter-spacing: normal;
     margin-bottom: 18px;
 }
+/* Optional: Add if you need specific styling for the graph container or canvas */
+#dailyExpensesGraphContainer {
+    /* padding: 10px; /* Example if more padding is needed */
+}
+
+#dailyBarChart {
+    width: 100% !important; /* Ensure Chart.js responsiveness */
+    max-height: 250px; /* Example max height */
+}
 /* Card Titles and Section Titles */
 .card > h4:not(#modalTitle),
 #history-section > h4,
