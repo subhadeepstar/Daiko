@@ -178,22 +178,52 @@
                     </select>
                 <p style="font-size:0.8em; opacity:0.7; margin-top:5px;">Note: For 'Scan & Pay', your OS will choose the app for UPI links.</p>
             </div>
-            <div class="settings-group">
-                <h5>User Profile</h5>
+<div class="settings-group">
+                <h5>User Authentication & Profile</h5>
+
+                <div id="authStatusDisplay" style="text-align: center; margin-bottom: 15px; font-weight: 500;">
+                    Not logged in
+                </div>
+
+                <div id="authFormContainer">
+                    <label for="userEmailInput">Authentication Email:</label>
+                    <input type="email" id="userEmailInput" placeholder="Enter your email for login/signup" aria-label="Authentication Email" />
+
+                    <label for="userPasswordInput" style="margin-top: 10px;">Password:</label>
+                    <div class="password-input-container">
+                        <input type="password" id="userPasswordInput" placeholder="Enter your password" aria-label="Authentication Password" />
+                        <span id="togglePasswordVisibility" class="toggle-password-visibility" role="button" tabindex="0" aria-label="Toggle password visibility">👁️</span>
+                    </div>
+
+                    <div style="margin-top: 20px;"> <button id="loginButton" class="primary" onclick="handleLoginAttempt()" style="width: 48%; display: inline-block; margin-right: 2%;">Login</button>
+                        <button id="signUpButton" class="secondary" onclick="handleSignUpAttempt()" style="width: 48%; display: inline-block; float: right;">Sign Up</button>
+                    </div>
+                </div>
+
+                <button id="logoutButton" class="danger" onclick="handleLogoutAttempt()" style="display:none; margin-top: 20px; width: 100%;">Logout</button>
+
+                <h5 style="margin-top: 30px; border-top: 1px dashed var(--border-color); padding-top: 20px;">Profile Customization</h5>
                 <div class="profile-display">
                     <span id="profileAvatarDisplay" class="profile-avatar">👋</span>
                     <div id="profileNameDisplay" class="profile-name">Guest</div>
-                    <div id="profileEmailDisplay" class="profile-email"></div>
-                </div>
-                <label for="userNameInput">User Name:</label>
-                <input type="text" id="userNameInput" placeholder="Enter your name" onkeyup="updateUserProfile()" aria-label="User Name" />
+                    <div id="profileEmailDisplay" class="profile-email"></div> </div>
+
+                <label for="userNameInput">Display Name:</label>
+                <input type="text" id="userNameInput" placeholder="Enter your display name" onkeyup="updateUserProfile()" aria-label="User Display Name" />
 
                 <label>Choose Avatar:</label>
                 <div class="avatar-options" id="avatarOptions">
-                    <span class="avatar-option" data-emoji="&#x1F473;">&#x1F473;</span> <span class="avatar-option" data-emoji="&#x1F466;">&#x1F466;</span> <span class="avatar-option" data-emoji="&#x1F467;">&#x1F467;</span> <span class="avatar-option" data-emoji="&#x1F468;">&#x1F468;</span> <span class="avatar-option" data-emoji="&#x1F469;">&#x1F469;</span> <span class="avatar-option" data-emoji="&#x1F471;">&#x1F471;</span> <span class="avatar-option" data-emoji="&#x1F9D1;">&#x1F9D1;</span> <span class="avatar-option" data-emoji="&#x1F9D3;">&#x1F9D3;</span> <span class="avatar-option" data-emoji="&#x1F9D4;">&#x1F9D4;</span> <span class="avatar-option" data-emoji="&#x1F47D;">&#x1F47D;</span> <span class="avatar-option" data-emoji="&#x1F916;">&#x1F916;</span>
-                </div>
-                <label for="userEmailInput">Email ID:</label>
-                <input type="email" id="userEmailInput" placeholder="Enter your email" onkeyup="updateUserProfile()" aria-label="User Email" />
+                    <span class="avatar-option" data-emoji="👋">👋</span>
+                    <span class="avatar-option" data-emoji="🧑">🧑</span>
+                    <span class="avatar-option" data-emoji="👩">👩</span>
+                    <span class="avatar-option" data-emoji="😀">😀</span>
+                    <span class="avatar-option" data-emoji="😎">😎</span>
+                    <span class="avatar-option" data-emoji="💡">💡</span>
+                    <span class="avatar-option" data-emoji="💼">💼</span>
+                    <span class="avatar-option" data-emoji="📚">📚</span>
+                    <span class="avatar-option" data-emoji="💰">💰</span>
+                    <span class="avatar-option" data-emoji="🏦">🏦</span>
+                    </div>
             </div>
 
             <div class="settings-group">
@@ -377,6 +407,10 @@
     </div>
   </div>
   <div id="toastNotification" class="toast-notification"></div>
-  <script src="script.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-analytics-compat.js"></script>  
+<script src="script.js"></script>
 </body>
 </html>
