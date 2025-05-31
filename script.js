@@ -3027,7 +3027,7 @@ function toggleLogTransactionSection() {
         // If the section is now open (meaning the 'open' class was added),
         // you might want to scroll it into view if it's off-screen.
         if (section.classList.contains('open')) {
-            // This scrolling is optional. You can uncomment it if needed.
+            // This scrolling is optional.
             // setTimeout(() => { 
             //     section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             // }, 50); 
@@ -3036,6 +3036,8 @@ function toggleLogTransactionSection() {
         console.error("#logTransactionSectionCard element not found!");
     }
 }
+
+
     let activeSectionWrapperId = 'dashboardSectionWrapper';
     const sectionOrder = ['dashboardSectionWrapper', 'historySectionWrapper', 'analyticsSectionWrapper', 'settingsSectionWrapper'];
 
@@ -3073,10 +3075,8 @@ function toggleLogTransactionSection() {
                     ];
                     dashboardElementsToToggle.forEach(selector => {
                         // Query within the specific sectionWrapperElement for accuracy
-                        const el = sectionWrapperElement.querySelector(selector) || document.querySelector(selector); // Fallback to global query if needed
+                        const el = sectionWrapperElement.querySelector(selector) || document.querySelector(selector);
                         if (el) {
-                            // Let CSS for .active class on sectionWrapperElement primarily handle visibility.
-                            // This explicit styling is for elements directly under it that might need specific display values.
                             if (isCurrentNewSection) { // If dashboard IS the new active section
                                 el.style.display = (selector === '#dashboardGaugesContainer' ? 'flex' : 'block');
                             } else { // If dashboard is NOT the new active section
@@ -3088,23 +3088,17 @@ function toggleLogTransactionSection() {
                     if (currentDateDisplayCard) {
                         currentDateDisplayCard.style.display = isCurrentNewSection ? 'block' : 'none';
                     }
-                    
+
                     const logTransactionCard = document.getElementById('logTransactionSectionCard');
                     if (logTransactionCard) { 
                         if (isCurrentNewSection) {
-                            // **** KEY CHANGE FOR DASHBOARD ACTIVATION ****
                             // When dashboard is active, REMOVE any inline display style
-                            // to let CSS classes (and the .open class) control visibility and animation.
+                            // to let CSS classes (and .open) control visibility and animation.
                             logTransactionCard.style.display = ''; 
-                            // The card will be in its default CSS collapsed state (max-height: 0, visibility: hidden)
-                            // unless the .open class is already present (e.g. if user left it open and refreshed).
-                            // The toggleLogTransactionSection function will then correctly add/remove .open.
                         } else {
-                            // When dashboard is NOT active, ensure the transaction card is programmatically closed
-                            // and its visibility will be handled by its parent section wrapper being hidden.
+                            // When dashboard is NOT active, ensure the transaction card is programmatically closed.
+                            // Its overall visibility will be handled by its parent section wrapper being hidden.
                             logTransactionCard.classList.remove('open'); 
-                            // We avoid setting logTransactionCard.style.display = 'none' directly here
-                            // to prevent conflicts with the CSS animation controlled by the '.open' class.
                         }
                     }
                 } else { // For other sections (history, analytics, settings)
@@ -3113,19 +3107,27 @@ function toggleLogTransactionSection() {
                     if (mainContentDiv) {
                         mainContentDiv.style.display = isCurrentNewSection ? 'block' : 'none';
                         if (isCurrentNewSection) {
-                            // Your existing logic for restoring toggle states in other sections
+                            // Logic to restore toggle states for history and FAQ in other sections
                             if (wrapperId === 'historySectionWrapper') {
                                 const historyContent = document.getElementById('history');
                                 const historyToggleIcon = document.getElementById('historyToggleIcon');
-                                if (historyContent && historyToggleIcon && historyToggleIcon.textContent === '▲') { // Only show if it was open
+                                if (historyContent && historyToggleIcon && historyToggleIcon.textContent === '▲') {
                                     historyContent.style.display = 'block';
                                 } else if (historyContent) {
                                     historyContent.style.display = 'none';
                                 }
+                                const dailyGraphContent = document.getElementById('dailyExpensesGraphContainer');
+                                const dailyGraphToggleIcon = document.getElementById('dailyExpensesGraphToggleIcon');
+                                if (dailyGraphContent && dailyGraphToggleIcon && dailyGraphToggleIcon.textContent === '▲'){
+                                    dailyGraphContent.style.display = 'block';
+                                    renderDailyBarChart(); 
+                                } else if (dailyGraphContent){
+                                    dailyGraphContent.style.display = 'none';
+                                }
                             } else if (wrapperId === 'settingsSectionWrapper') {
                                 const faqContent = document.getElementById('faqContentSettings');
                                 const faqToggleIcon = document.getElementById('faqToggleIconSettings');
-                                if (faqContent && faqToggleIcon && faqToggleIcon.textContent === '▲') { // Only show if it was open
+                                if (faqContent && faqToggleIcon && faqToggleIcon.textContent === '▲') { 
                                     faqContent.style.display = 'block';
                                 } else if (faqContent) {
                                     faqContent.style.display = 'none';
@@ -3134,7 +3136,7 @@ function toggleLogTransactionSection() {
                         }
                     }
                 }
-            });
+       });
             render();
             newSectionWrapper.removeEventListener('animationend', newSectionAnimationEnd);
         };
