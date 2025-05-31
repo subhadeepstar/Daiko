@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Smart Budget Wallet</title>
-  <meta name="description" content="Track your monthly budget, income and expenses smartly with this sleek budget wallet app.">
+  <title>DaikuFi</title>
+  <meta name="description" content="Track your monthly budget, income and expenses smartly with DaikuFi.">
   <meta name="theme-color" content="#121212">
   <link rel="manifest" href="/manifest.json">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
@@ -44,7 +44,7 @@
             <span id="logTransactionBtnIcon" style="margin-right: 8px;">₹</span>Log New Transaction
         </button>
 
-        <div class="card no-hover-effect" id="logTransactionSectionCard" style="display:none;">
+        <div class="card no-hover-effect" id="logTransactionSectionCard">
             <h4>Log Transaction</h4>
             <select id="payCategory" aria-label="Select Category for Payment"></select>
             <input type="number" id="payAmount" placeholder="Enter amount" aria-label="Payment Amount" />
@@ -118,13 +118,10 @@
     <div class="card no-hover-effect" id="history-section">
         <h4 style="cursor:pointer" onclick="toggleHistory()" aria-label="Toggle Transaction History">Transaction History <span id="historyToggleIcon">▼</span></h4>
         <div id="history" style="display:none;">
-             <table id="historyTable">
+            <table id="historyTable">
                 <thead>
                     <tr>
-                        <th>Date</th>
-                        <th>Amount</th>
-                        <th>Type</th>
-                    </tr>
+                        <th>Date</th>        <th>Description</th> <th>Amount</th>      <th>Type</th>        </tr>
                 </thead>
                 <tbody>
                     </tbody>
@@ -141,7 +138,22 @@
             <h4>Expense Distribution</h4>
             <div id="expenseSummaryText" class="expense-summary-text"></div>
             <canvas id="expensePieChart"></canvas>
-            <button onclick="exportToPdf()" class="primary" style="margin-top: 20px;" aria-label="Download Current Statement">Download Current Statement</button>
+          
+            <h4>Statement Download</h4>
+
+<div class="settings-group" style="border-bottom: none; margin-bottom: 5px;"> <label for="pdfStartDate" style="font-size:0.9em;">Start Date:</label>
+    <input type="date" id="pdfStartDate" aria-label="PDF Export Start Date" style="margin-bottom:5px;">
+
+    <label for="pdfEndDate" style="font-size:0.9em;">End Date:</label>
+    <input type="date" id="pdfEndDate" aria-label="PDF Export End Date">
+</div>
+<button onclick="exportToPdfWithDateRange()" class="primary" style="margin-top: 15px;" aria-label="Download Statement for Selected Range">Download Statement (Date Range)</button>
+
+<p style="text-align:center; margin:10px 0; font-size:0.9em;">OR</p>
+
+<button onclick="exportToPdf()" class="secondary" aria-label="Download Current Month Statement">Download Current Month Statement</button> 
+
+
         </div>
     </div>
     <div id="settingsSectionWrapper" class="app-section" style="display:none;">
@@ -161,6 +173,20 @@
             </div>
 
             <div class="settings-group">
+                <label for="timezoneSelect">Timezone:</label>
+                <select id="timezoneSelect" onchange="updateUserTimezone()">
+                    <option value="Etc/UTC">UTC</option>
+                    <option value="America/New_York">America/New_York (ET)</option>
+                    <option value="Europe/London">Europe/London (GMT/BST)</option>
+                    <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                    <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                    <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
+                    </select>
+                <p style="font-size:0.8em; opacity:0.7; margin-top:5px;">
+                    This helps display dates and times correctly. Your browser's current timezone is a good default.
+                </p>
+            </div>
+            <div class="settings-group">
                 <label for="currencySelect">Currency:</label>
                 <select id="currencySelect" onchange="updateCurrency()">
                     <option value="INR">₹ Indian Rupee (INR)</option>
@@ -178,7 +204,27 @@
                     </select>
                 <p style="font-size:0.8em; opacity:0.7; margin-top:5px;">Note: For 'Scan & Pay', your OS will choose the app for UPI links.</p>
             </div>
-<div class="settings-group">
+             
+            <div class="settings-group">
+            <h5>Budget Mode</h5>
+            <div class="radio-group" id="budgetModeSelector">
+                <label style="display: block; margin-bottom: 8px;">
+                    <input type="radio" name="budgetModeOption" value="individual" onchange="handleModeChangeAttempt('individual')">
+                    Individual Planner (Offline, Local Data)
+                </label>
+                <label style="display: block;">
+                    <input type="radio" name="budgetModeOption" value="shared" onchange="handleModeChangeAttempt('shared')">
+                    Shared Planner (Online Sync with Login)
+                </label>
+            </div>
+            <p style="font-size:0.8em; opacity:0.7; margin-top:5px;">
+                Switching modes will involve data handling choices.
+            </p>
+        </div>
+            
+
+
+             <div class="settings-group">
                 <h5>User Authentication & Profile</h5>
 
                 <div id="authStatusDisplay" style="text-align: center; margin-bottom: 15px; font-weight: 500;">
@@ -235,7 +281,7 @@
             <div class="settings-group">
                 <h5>About the App</h5>
                 <div class="about-app-content">
-                    <p>Smart Budget Wallet helps you track your monthly income and expenses efficiently. Manage various funds, log transactions, and visualize your spending with ease.</p>
+                    <p>DaikuFi helps you track your monthly income and expenses efficiently. Manage various funds, log transactions, and visualize your spending with ease.</p>
                     <p>Version: 1.0.0</p>
                 </div>
             </div>
@@ -311,7 +357,7 @@
       <button class="close-btn" id="closeChatBtn" aria-label="Close Chatbot">X</button>
     </div>
     <div class="chat-messages" id="chatMessages">
-      <div class="chat-message bot"><span>Hello! I'm your Smart Budget Wallet bot. How can I assist you today? Try asking about your 'balance' or how to 'add a fund'.</span></div>
+      <div class="chat-message bot"><span>Hello! I'm your DaikuFi bot. You can call me Daiko! How can I assist you today? Try asking about your 'balance' or how to 'add a fund'.</span></div>
     </div>
     <div class="chat-input-area">
       <input type="text" id="chatInput" placeholder="Type a message..." aria-label="Chat input" />
