@@ -2,26 +2,21 @@
   "name": "DaikuFi",
   "short_name": "DaikuFi",
   "description": "Track your monthly budget, income and expenses smartly with DaikuFi.",
-  "start_url": "/index.html"
+  "start_url": "/index.html",
   "display": "standalone",
-  "background_color": "#f5f5f5",
-  "theme_color": "#121212",
+  "background_color": "#F9FAFB",
+  "theme_color": "#B98BFF",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "budget.png",
+      "src": "/budget.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "budget.png",
+      "src": "/budget.png",
       "type": "image/png",
       "sizes": "512x512"
-    },
-    {
-      "src": "budget.png",
-      "type": "image/png",
-      "sizes": "1024x1024"
     }
   ]
 }
