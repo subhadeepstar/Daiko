@@ -1,6 +1,6 @@
 // service-worker.js
 
-const CACHE_NAME = 'smart-budget-wallet-cache-v1';
+const CACHE_NAME = 'daikufi-cache-v1';
 const urlsToCache = [
   '/',
   '/index.html',
