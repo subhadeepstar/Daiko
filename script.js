@@ -22,194 +22,140 @@ console.log("Firebase initialized successfully!"); // For checking in the browse
 
 let currentUser = null;
 let budgetListenerUnsubscribe = null; // To store the unsubscribe function for the Firestore listener
+let pendingLocalDataUpload = false; // Flag to manage data upload after switching to shared mode
+let pendingSwitchToIndividualMode = false; // True if user selected 'individual' mode while logged into 'shared'
+
 
 // Modify your existing onAuthStateChanged function:
+// Near line 20, replace the existing onAuthStateChanged
+
+
 auth.onAuthStateChanged(async user => {
     const authStatusDisplay = document.getElementById('authStatusDisplay');
     const authFormContainer = document.getElementById('authFormContainer');
     const logoutButton = document.getElementById('logoutButton');
+    const profileNameDisplay = document.getElementById('profileNameDisplay');
     const profileEmailDisplay = document.getElementById('profileEmailDisplay');
     const welcomeMessageEl = document.getElementById('welcomeMessage');
     const welcomeAvatarEl = document.getElementById('welcomeAvatar');
 
-    // If there's an existing listener, unsubscribe from it first
+    // Always try to detach any existing listener first when auth state might be changing.
     if (budgetListenerUnsubscribe) {
-        console.log("Detaching existing Firestore listener.");
+        console.log("Detaching existing Firestore listener (onAuthStateChanged start).");
         budgetListenerUnsubscribe();
         budgetListenerUnsubscribe = null;
     }
 
     if (user) {
-        currentUser = user;
-        console.log("User logged in:", currentUser.uid, currentUser.email);
+        currentUser = user; // Firebase user is logged in
+        console.log("Firebase user session active:", currentUser.uid, currentUser.email);
 
-        if (authStatusDisplay) authStatusDisplay.textContent = `Logged in as: ${currentUser.email}`;
+        // Update common UI elements based on Firebase user and local userProfile
         if (profileEmailDisplay) profileEmailDisplay.textContent = currentUser.email;
-        if (profileNameDisplay) profileNameDisplay.textContent = userProfile.name; // Uses localStorage name
-        if (welcomeAvatarEl) welcomeAvatarEl.textContent = userProfile.avatar; // Uses localStorage avatar
-        let displayNameForWelcome = (userProfile.name && userProfile.name !== 'Guest') ? userProfile.name : currentUser.email.split('@')[0];
+        // Use local userProfile.name if available and not "Guest", otherwise derive from email
+        let displayNameForWelcome = (userProfile.name && userProfile.name !== 'Guest' && userProfile.name.trim() !== '') ? userProfile.name : currentUser.email.split('@')[0];
         if (welcomeMessageEl) welcomeMessageEl.textContent = `Welcome, ${displayNameForWelcome}!`;
-        if (authFormContainer) authFormContainer.style.display = 'none';
-        if (logoutButton) logoutButton.style.display = 'block';
+        if (welcomeAvatarEl) welcomeAvatarEl.textContent = userProfile.avatar || '👋'; // Use local avatar
+
+        if (appSettings.budgetMode === 'shared') {
+            console.log("User logged in AND in Shared Mode.");
+            if (authStatusDisplay) authStatusDisplay.textContent = `Shared Mode: Logged in as ${currentUser.email}`;
+            
+            // Process any pending upload from a recent mode switch BEFORE setting up the listener
+            await processPendingUploadIfNeeded(currentUser); // This handles prompts and potential Firestore write
+            
+            showToast('Syncing shared budget...');
+            setupFirestoreListenerForUser(currentUser); // This sets onSnapshot, which loads data & calls render
+        } else { // Individual Mode, but a Firebase user session technically exists
+            console.log("Firebase user session active, but app is in Individual Mode. Using local data.");
+            // Listener is already ensured detached.
+            
+            // Ensure local data is the source of truth
+            monthlyData = JSON.parse(localStorage.getItem('monthlyData')) || {};
+            // Full sanitization for monthlyData from localStorage
+            for (const monthKey in monthlyData) {
+                 if (monthlyData.hasOwnProperty(monthKey)) {
+                    const month = monthlyData[monthKey];
+                    if (month.hasOwnProperty('income')) month.income = parseFloat(month.income) || 0;
+                    if (month.categories && Array.isArray(month.categories)) {
+                        month.categories.forEach(cat => {
+                            cat.initialBalance = parseFloat(cat.initialBalance) || 0;
+                            cat.balance = parseFloat(cat.balance) || 0;
+                            cat.spent = parseFloat(cat.spent) || 0;
+                            if (cat.hasOwnProperty('emiAmount')) cat.emiAmount = parseFloat(cat.emiAmount) || 0;
+                            if (cat.hasOwnProperty('dueDay') && cat.dueDay !== null) cat.dueDay = parseInt(cat.dueDay, 10) || null;
+                        });
+                    }
+                     if (!month.history) month.history = [];
+                     if (!month.hasOwnProperty('emiDeducted')) month.emiDeducted = false;
+                     if (!month.hasOwnProperty('fundsImported')) month.fundsImported = false;
+                 }
+            }
+            // appSettings would have been loaded from localStorage at DOMContentLoaded
+            // and reflect 'individual' mode.
+            document.getElementById('currencySelect').value = appSettings.currency;
+            document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
+
+            showToast("Using Individual Offline Budget.");
+            render(); // Render with local data
+        }
+        // Clear auth form fields after login/signup attempt is processed
         const emailAuthInput = document.getElementById('userEmailInput');
         const passwordAuthInput = document.getElementById('userPasswordInput');
         if (emailAuthInput) emailAuthInput.value = '';
         if (passwordAuthInput) passwordAuthInput.value = '';
 
-        showToast('You are now logged in! Setting up real-time data sync...');
-
-        // --- Setup Real-time Listener ---
-        const docRef = db.collection('budgets').doc('sharedFamilyBudget');
-        budgetListenerUnsubscribe = docRef.onSnapshot(docSnap => {
-            console.log("Firestore real-time update received (onSnapshot).");
-            if (docSnap.exists) { // Remember: .exists is a property for compat libraries
-                console.log("Shared budget document found in Firestore (real-time)!");
-                const firestoreData = docSnap.data();
-                let dataChanged = false;
-
-                // Load and sanitize monthlyData
-                if (firestoreData.monthlyData) {
-                    // Simple check for changes; for deep objects, a proper deep-equal is better
-                    // For now, we'll just update if the field exists.
-                    // A more robust check: if(JSON.stringify(monthlyData) !== JSON.stringify(firestoreData.monthlyData))
-                    monthlyData = firestoreData.monthlyData;
-                    // Sanitize monthlyData fetched from Firestore
-                    for (const monthKey in monthlyData) {
-                        if (monthlyData.hasOwnProperty(monthKey)) {
-                            const month = monthlyData[monthKey];
-                            if (month.hasOwnProperty('income')) {
-                                month.income = parseFloat(month.income) || 0;
-                            }
-                            if (month.categories && Array.isArray(month.categories)) {
-                                month.categories.forEach(cat => {
-                                    cat.initialBalance = parseFloat(cat.initialBalance) || 0;
-                                    cat.balance = parseFloat(cat.balance) || 0;
-                                    cat.spent = parseFloat(cat.spent) || 0;
-                                    if (cat.hasOwnProperty('emiAmount')) {
-                                        cat.emiAmount = parseFloat(cat.emiAmount) || 0;
-                                    }
-                                    if (cat.hasOwnProperty('dueDay') && cat.dueDay !== null) {
-                                        cat.dueDay = parseInt(cat.dueDay, 10) || null;
-                                    }
-                                });
-                            }
-                            if (!month.history) month.history = [];
-                            if (!month.hasOwnProperty('emiDeducted')) month.emiDeducted = false;
-                            if (!month.hasOwnProperty('fundsImported')) month.fundsImported = false;
-                        }
-                    }
-                    dataChanged = true;
-                    console.log("monthlyData updated from Firestore (real-time).");
-                } else {
-                    // If monthlyData field is missing in Firestore but user is logged in,
-                    // it implies it was deleted from DB or never created. Re-initialize.
-                    monthlyData = JSON.parse(localStorage.getItem('monthlyData')) || {};
-                    console.log("No 'monthlyData' in Firestore (real-time). Using local/default.");
-                    // dataChanged might still be true if local differs from an empty cloud state
-                }
-
-                // Load and merge appSettings
-                if (firestoreData.appSettings) {
-                    const sharedSettings = firestoreData.appSettings;
-                    if (appSettings.currency !== sharedSettings.currency ||
-                        appSettings.defaultPaymentApp !== sharedSettings.defaultPaymentApp) {
-                        dataChanged = true;
-                    }
-                    appSettings.currency = sharedSettings.currency || appSettings.currency;
-                    appSettings.defaultPaymentApp = sharedSettings.defaultPaymentApp || appSettings.defaultPaymentApp;
-                    console.log("Shared appSettings updated from Firestore (real-time) and merged.");
-                } else {
-                     console.log("No 'appSettings' in Firestore (real-time). Using local/default.");
-                }
-
-                if (dataChanged) {
-                    showToast("Budget data synced from cloud.");
-                    document.getElementById('currencySelect').value = appSettings.currency;
-                    document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
-                    render(); // Re-render UI with new data
-                } else if (!docSnap.metadata.hasPendingWrites) { // Initial load might not show dataChanged yet
-                     // First snapshot after login (initial load) might not be flagged as "dataChanged" by simple checks above.
-                     // So, always render on the first successful fetch unless it's a local echo.
-                     // docSnap.metadata.hasPendingWrites is true if the change originated locally.
-                    console.log("Initial data load via onSnapshot or no effective change, rendering.");
-                    document.getElementById('currencySelect').value = appSettings.currency;
-                    document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
-                    render();
-                }
-
-            } else {
-                // Document sharedFamilyBudget does not exist
-                console.log("No shared budget document (real-time). Initializing local/default. Will be created on first save.");
-                monthlyData = JSON.parse(localStorage.getItem('monthlyData')) || {};
-                // Ensure full sanitization
-                for (const monthKey in monthlyData) { /* ... (full sanitization as in loadDataFromFirestore) ... */ }
-                appSettings = JSON.parse(localStorage.getItem('appSettings')) || {
-                    currency: 'INR', defaultPaymentApp: 'GPay', notifications: []
-                };
-                if (!appSettings.notifications) appSettings.notifications = [];
-                document.getElementById('currencySelect').value = appSettings.currency;
-                document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
-                render(); // Render with local/default data
-            }
-        }, error => {
-            console.error("Error in Firestore real-time listener: ", error);
-            showToast("Error syncing data. Please check connection.");
-            // Optionally, implement more robust error handling or fallback logic here.
-        });
-        // --- End of Real-time Listener Setup ---
-
     } else {
-        // User is signed out.
+        // User is signed out from Firebase
         currentUser = null;
-        console.log("User logged out. (onAuthStateChanged)");
+        console.log("Firebase user signed out (onAuthStateChanged).");
 
-        if (authStatusDisplay) authStatusDisplay.textContent = 'Not logged in';
+        // Reset UI to guest/logged-out state
         if (profileEmailDisplay) profileEmailDisplay.textContent = '';
         if (profileNameDisplay) profileNameDisplay.textContent = 'Guest';
         if (welcomeAvatarEl) welcomeAvatarEl.textContent = '👋';
         if (welcomeMessageEl) welcomeMessageEl.textContent = `Welcome, Guest!`;
+        
+        // Also reset the local userProfile object for consistency on logout
         userProfile.name = 'Guest';
-        userProfile.email = '';
+        userProfile.email = ''; // Clear email from local profile as well
         userProfile.avatar = '👋';
-        saveUserProfile(); // Save guest state to localStorage
+        saveUserProfile(); // Save this guest state to localStorage
 
-        if (authFormContainer) authFormContainer.style.display = 'block';
-        if (logoutButton) logoutButton.style.display = 'none';
-
-        // Reset to local data on logout
+        // Regardless of mode, if no Firebase user, operate on localStorage data
         monthlyData = JSON.parse(localStorage.getItem('monthlyData')) || {};
-        // Ensure full sanitization
+        // Full sanitization for monthlyData from localStorage
         for (const monthKey in monthlyData) {
              if (monthlyData.hasOwnProperty(monthKey)) {
                 const month = monthlyData[monthKey];
-                if (month.hasOwnProperty('income')) {
-                    month.income = parseFloat(month.income) || 0;
-                }
+                if (month.hasOwnProperty('income')) month.income = parseFloat(month.income) || 0;
                 if (month.categories && Array.isArray(month.categories)) {
                     month.categories.forEach(cat => {
                         cat.initialBalance = parseFloat(cat.initialBalance) || 0;
                         cat.balance = parseFloat(cat.balance) || 0;
                         cat.spent = parseFloat(cat.spent) || 0;
-                        // ... etc. for all properties in category
+                        if (cat.hasOwnProperty('emiAmount')) cat.emiAmount = parseFloat(cat.emiAmount) || 0;
+                        if (cat.hasOwnProperty('dueDay') && cat.dueDay !== null) cat.dueDay = parseInt(cat.dueDay, 10) || null;
                     });
                 }
-                 if (!month.history) month.history = [];
-                 if (!month.hasOwnProperty('emiDeducted')) month.emiDeducted = false;
-                 if (!month.hasOwnProperty('fundsImported')) month.fundsImported = false;
+                if (!month.history) month.history = [];
+                if (!month.hasOwnProperty('emiDeducted')) month.emiDeducted = false;
+                if (!month.hasOwnProperty('fundsImported')) month.fundsImported = false;
              }
         }
-
-        appSettings = JSON.parse(localStorage.getItem('appSettings')) || {
-            currency: 'INR', defaultPaymentApp: 'GPay', notifications: []
-        };
+        // Load appSettings from localStorage. The budgetMode will determine further behavior.
+        appSettings = JSON.parse(localStorage.getItem('appSettings')) || { currency: 'INR', defaultPaymentApp: 'GPay', notifications: [], budgetMode: 'individual' };
+        if (!appSettings.budgetMode) appSettings.budgetMode = 'individual'; // Ensure default if missing
         if (!appSettings.notifications) appSettings.notifications = [];
-
+        
         document.getElementById('currencySelect').value = appSettings.currency;
         document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
 
-        showToast("You are now logged out.");
-        render();
+        showToast("You are logged out.");
+        render(); // Render the logged-out state using local data
     }
+    // Update auth UI visibility based on the current mode and user object (currentUser could be null here)
+    updateAuthUIVisibility();
 });
 
 // service-worker.js registration (added here for completeness, usually in a separate file)
@@ -466,7 +412,9 @@ function renderDailyBarChart() {
     let appSettings = JSON.parse(localStorage.getItem('appSettings')) || {
         currency: 'INR',
         defaultPaymentApp: 'GPay',
-        notifications: []
+        notifications: [],
+        
+        userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone // Default to browser's timezone
     };
      if (!appSettings.notifications) appSettings.notifications = [];
 
@@ -609,36 +557,37 @@ async function saveData() {
         renderUserProfile();
     }
 
-// Replace the existing saveAppSettings function with this:
+// saveAppSettings function :
+// Modify the existing saveAppSettings function
 async function saveAppSettings() {
-  if (!currentUser) {
-    console.log("No user logged in. Saving appSettings to localStorage.");
-    localStorage.setItem('appSettings', JSON.stringify(appSettings));
-    return; // Exit if no user
-  }
+  // Always save the full appSettings (including budgetMode) to localStorage
+  saveLocalAppSettings();
 
-  console.log("User logged in. Attempting to save appSettings to Firestore...");
-  // We only want to sync specific shared settings, e.g., currency and defaultPaymentApp.
-  // Notifications are usually device-specific and voluminous, so let's exclude them from Firestore sync for now.
-  const sharedSettings = {
-      currency: appSettings.currency,
-      defaultPaymentApp: appSettings.defaultPaymentApp
-      // Add any other settings you specifically want to sync
-  };
+  // Only sync specific shared settings to Firestore if in shared mode and logged in
+  if (appSettings.budgetMode === 'shared' && currentUser) {
+    console.log("Shared mode & logged in. Attempting to save shareable appSettings to Firestore...");
+    const sharedSettingsToSync = {
+        currency: appSettings.currency,
+        defaultPaymentApp: appSettings.defaultPaymentApp
+        // Do NOT include appSettings.budgetMode or appSettings.notifications here for Firestore sync
+    };
 
-  try {
-    await db.collection('budgets').doc('sharedFamilyBudget').set({
-      appSettings: sharedSettings // Save the filtered sharedSettings
-    }, { merge: true });
-    console.log('Shared appSettings successfully saved to Firestore!');
-    // showToast('App settings synced to cloud.'); // Optional
-  } catch (error) {
-    console.error("Error saving appSettings to Firestore: ", error);
-    showToast('Error syncing app settings. Using local backup.');
-    localStorage.setItem('appSettings', JSON.stringify(appSettings)); // Fallback
+    try {
+      await db.collection('budgets').doc('sharedFamilyBudget').set({
+        appSettings: sharedSettingsToSync
+      }, { merge: true });
+      console.log('Shareable appSettings successfully synced to Firestore!');
+    } catch (error) {
+      console.error("Error syncing shareable appSettings to Firestore: ", error);
+      showToast('Error syncing shared settings to cloud.');
+      // Local save already done by saveLocalAppSettings()
+    }
+  } else {
+    console.log("Not syncing appSettings to Firestore (either individual mode or not logged in).");
   }
 }
-        // --- START: AUTHENTICATION FUNCTIONS ---
+
+// --- START: AUTHENTICATION FUNCTIONS ---
 
     async function handleSignUpAttempt() {
         // Using 'userEmailInput' and 'userPasswordInput' as per your integrated HTML
@@ -694,18 +643,56 @@ async function saveAppSettings() {
         }
     }
 
-    async function handleLogoutAttempt() {
-        try {
-            showToast('Logging out...');
-            await auth.signOut();
-            // onAuthStateChanged will handle the UI update
-            // Additional cleanup (like clearing specific app data) can be done in onAuthStateChanged's "else" block
-        } catch (error) {
-            console.error("Logout Error:", error);
-            showAlert(`Logout failed: ${error.message}`);
-        }
-    }
 
+
+// Replace your existing handleLogoutAttempt function
+async function handleLogoutAttempt() {
+    try {
+        if (appSettings.budgetMode === 'shared' && pendingSwitchToIndividualMode) {
+            // User was in shared mode, selected individual, and is now logging out.
+            // Prompt to copy data BEFORE actual Firebase sign-out.
+
+            // Capture current in-memory data (which is from Firestore)
+            const currentSharedMonthlyData = JSON.parse(JSON.stringify(monthlyData));
+            const currentSharedAppSettingsForCopy = JSON.parse(JSON.stringify(appSettings));
+
+            const confirmedCopy = await showConfirm(
+                "You are logging out to switch to Individual Planner mode.\n\nDo you want to copy your current Shared Budget data for local, offline use?\n\n- 'OK' will overwrite your local data with this shared data.\n- 'Cancel' will use your previous local data (if any) after logout.",
+                "Copy Shared Data Locally Before Logout?"
+            );
+
+            if (confirmedCopy) {
+                showToast("Copying shared data for local use...");
+                localStorage.setItem('monthlyData', JSON.stringify(currentSharedMonthlyData));
+                const localSettingsToSave = {
+                    ...currentSharedAppSettingsForCopy, // currency, defaultPaymentApp from shared
+                    notifications: appSettings.notifications, // Preserve existing local notifications
+                    budgetMode: 'individual' // Set the new mode
+                };
+                localStorage.setItem('appSettings', JSON.stringify(localSettingsToSave));
+                showToast("Shared data copied for local use.");
+            } else {
+                showToast("Shared data not copied. Previous local data will be used.");
+            }
+
+            // Set the app to individual mode definitively before logging out of Firebase
+            appSettings.budgetMode = 'individual';
+            saveLocalAppSettings(); // Save this mode to localStorage
+            pendingSwitchToIndividualMode = false; // Reset the flag
+        }
+        // For any other logout scenario, or after handling the pending switch, proceed to sign out.
+        showToast('Logging out...');
+        await auth.signOut();
+        // onAuthStateChanged will handle UI updates and loading local data.
+        // No need for showToast('Logout successful.') here, onAuthStateChanged will provide feedback.
+    } catch (error) {
+        console.error("Logout Error:", error);
+        showAlert(`Logout failed: ${error.message}`);
+        // Reset flags if logout fails mid-switch to prevent inconsistent state
+        isSwitchingMode = false; 
+        // pendingSwitchToIndividualMode might need careful handling if signOut fails
+    }
+}
     // --- END: AUTHENTICATION FUNCTIONS ---
 
     // --- Dashboard Gauge Chart Functions ---
@@ -741,7 +728,42 @@ async function saveAppSettings() {
         return chart;
     }
 
-    function updateGaugeChart(chartInstance, percentage, textElementId, cssColorVarForText) {
+   
+function updateAuthUIVisibility() {
+    const authFormContainer = document.getElementById('authFormContainer');
+    const logoutButton = document.getElementById('logoutButton');
+    const authRelatedHeadingsAndProfile = document.querySelector('#settings-section .settings-group h5:first-of-type'); // Assuming "User Authentication & Profile"
+    // Or more specifically target elements you want to hide if User Auth heading is separate
+    // const userAuthHeading = document.getElementById('userAuthSpecificHeading'); // If you add such an ID
+
+    if (appSettings.budgetMode === 'individual') {
+        if (authFormContainer) authFormContainer.style.display = 'none';
+        if (logoutButton) logoutButton.style.display = 'none';
+        // Optionally hide the whole "User Authentication" section or just login parts
+        // if (userAuthHeading) userAuthHeading.style.display = 'none';
+        if (authStatusDisplay) authStatusDisplay.textContent = 'Using Individual Offline Mode';
+
+    } else { // Shared mode
+        // if (userAuthHeading) userAuthHeading.style.display = 'block';
+        if (currentUser) {
+            if (authFormContainer) authFormContainer.style.display = 'none';
+            if (logoutButton) logoutButton.style.display = 'block';
+            if (authStatusDisplay) authStatusDisplay.textContent = `Shared Mode: Logged in as ${currentUser.email}`;
+        } else {
+            if (authFormContainer) authFormContainer.style.display = 'block';
+            if (logoutButton) logoutButton.style.display = 'none';
+            if (authStatusDisplay) authStatusDisplay.textContent = 'Shared Mode: Not logged in';
+        }
+    }
+}
+
+
+     function saveLocalAppSettings() {
+    localStorage.setItem('appSettings', JSON.stringify(appSettings));
+    console.log("App settings (including mode) saved to localStorage.");
+}
+
+     function updateGaugeChart(chartInstance, percentage, textElementId, cssColorVarForText) {
         const cappedPercentage = Math.min(Math.max(percentage, 0), 100);
         const textElement = document.getElementById(textElementId);
 
@@ -914,196 +936,305 @@ async function saveAppSettings() {
   render();
 }
 
-    function render() {
-      saveData();
-      saveUserProfile();
-      saveAppSettings();
+//render function
+function render() {
+    // These save functions will now use appSettings.budgetMode and currentUser
+    // to determine if they save to localStorage or Firestore.
+    saveData();
+    saveUserProfile(); // This still saves to localStorage as per our previous decisions
+    saveAppSettings(); // This saves appSettings.budgetMode to localStorage and shared settings to Firestore if applicable
 
-      const currentMonthData = getCurrentMonthData();
-      const categories = currentMonthData.categories;
-      const history = currentMonthData.history;
-      const monthlyIncome = currentMonthData.income;
+    const currentMonthData = getCurrentMonthData(); // From main monthlyData
+    // If you were implementing personal funds, you'd also get personalCurrentMonthData here.
+    // For now, we assume 'categories' and 'history' come from the main (potentially synced) monthlyData.
+    const categories = currentMonthData.categories || [];
+    const history = currentMonthData.history || [];
+    const monthlyIncome = currentMonthData.income || 0;
 
-      const currentCurrencySymbol = currencySymbols[appSettings.currency];
-      document.getElementById('currencySymbolTotalBalance').textContent = currentCurrencySymbol;
-      document.getElementById('currencySymbolMonthlyIncome').textContent = currentCurrencySymbol;
-      document.getElementById('currencySymbolTotalExpenses').textContent = currentCurrencySymbol;
-      document.getElementById('logTransactionBtnIcon').textContent = currentCurrencySymbol;
+    const currentCurrencySymbol = currencySymbols[appSettings.currency] || '₹'; // Fallback currency
+    
+    // Update currency symbols throughout the UI
+    document.getElementById('currencySymbolTotalBalance').textContent = currentCurrencySymbol;
+    document.getElementById('currencySymbolMonthlyIncome').textContent = currentCurrencySymbol;
+    document.getElementById('currencySymbolTotalExpenses').textContent = currentCurrencySymbol;
+    const logTransactionBtnIcon = document.getElementById('logTransactionBtnIcon');
+    if (logTransactionBtnIcon) logTransactionBtnIcon.textContent = currentCurrencySymbol;
 
+    document.getElementById('currentDateDisplay').textContent = getFullDateString(currentMonth);
+    document.getElementById('monthlyIncomeInput').value = monthlyIncome > 0 ? monthlyIncome.toFixed(2) : '';
+    document.getElementById('displayMonthlyIncome').textContent = monthlyIncome.toFixed(2);
 
-      document.getElementById('currentDateDisplay').textContent = getFullDateString(currentMonth);
-      document.getElementById('monthlyIncomeInput').value = monthlyIncome > 0 ? monthlyIncome.toFixed(2) : '';
-      document.getElementById('displayMonthlyIncome').textContent = monthlyIncome.toFixed(2);
+    const loanEmiFundsDiv = document.getElementById('loanEmiFunds');
+    const dailyExpenseFundsDiv = document.getElementById('dailyExpenseFunds');
+    const investmentFundsDiv = document.getElementById('investmentFunds');
 
-      const loanEmiFundsDiv = document.getElementById('loanEmiFunds');
-      const dailyExpenseFundsDiv = document.getElementById('dailyExpenseFunds');
-      const investmentFundsDiv = document.getElementById('investmentFunds');
+    const paySelect = document.getElementById('payCategory');
+    const transferFromSelect = document.getElementById('transferFromCategory');
+    const transferToSelect = document.getElementById('transferToCategory');
+    const totalBalanceSpan = document.getElementById('totalBalance');
+    const displayTotalExpensesSpan = document.getElementById('displayTotalExpenses');
+    const copyFundsBtn = document.getElementById('copyFundsBtn');
+    const expenseSummaryTextDiv = document.getElementById('expenseSummaryText');
+    const defaultPaymentAppNameSpan = document.getElementById('defaultPaymentAppName');
 
-      const paySelect = document.getElementById('payCategory');
-      const transferFromSelect = document.getElementById('transferFromCategory');
-      const transferToSelect = document.getElementById('transferToCategory');
-      const totalBalanceSpan = document.getElementById('totalBalance');
-      const displayTotalExpensesSpan = document.getElementById('displayTotalExpenses');
-      const copyFundsBtn = document.getElementById('copyFundsBtn');
-      const expenseSummaryTextDiv = document.getElementById('expenseSummaryText');
-      const defaultPaymentAppNameSpan = document.getElementById('defaultPaymentAppName');
+    if (defaultPaymentAppNameSpan) defaultPaymentAppNameSpan.textContent = appSettings.defaultPaymentApp;
 
-      if(defaultPaymentAppNameSpan) defaultPaymentAppNameSpan.textContent = appSettings.defaultPaymentApp;
+    // Clear existing fund displays and select options
+    if (loanEmiFundsDiv) loanEmiFundsDiv.innerHTML = '';
+    if (dailyExpenseFundsDiv) dailyExpenseFundsDiv.innerHTML = '';
+    if (investmentFundsDiv) investmentFundsDiv.innerHTML = '';
+    if (paySelect) paySelect.innerHTML = '';
+    if (transferFromSelect) transferFromSelect.innerHTML = '';
+    if (transferToSelect) transferToSelect.innerHTML = '';
 
+    // --- MODIFIED HISTORY TABLE POPULATION ---
+    const historyTableBody = document.querySelector('#historyTable tbody');
+    if (historyTableBody) {
+        historyTableBody.innerHTML = ''; // Clear previous rows
+        history.forEach(h => {
+            const row = historyTableBody.insertRow();
+            const cellDate = row.insertCell();
+            const cellDesc = row.insertCell(); // This will display the concise fund name/activity
+            const cellAmount = row.insertCell();
+            const cellType = row.insertCell();
 
-      loanEmiFundsDiv.innerHTML = '';
-      dailyExpenseFundsDiv.innerHTML = '';
-      investmentFundsDiv.innerHTML = '';
-      paySelect.innerHTML = '';
-      transferFromSelect.innerHTML = '';
-      transferToSelect.innerHTML = '';
+            cellDate.textContent = new Date(h.timestamp).toLocaleDateString();
 
-      const historyTableBody = document.querySelector('#historyTable tbody');
-      historyTableBody.innerHTML = '';
-      history.forEach(h => {
-          const row = historyTableBody.insertRow();
-          const cellDate = row.insertCell();
-          const cellDesc = row.insertCell();
-          const cellAmount = row.insertCell();
-          const cellType = row.insertCell();
+            let descriptionContent = '';
+            switch (h.type) {
+                case 'fund_creation':
+                case 'personal_fund_creation':
+                case 'fund_deletion':
+                    descriptionContent = h.fundName || 'N/A';
+                    break;
+                case 'expense_cash':
+                case 'expense_scan_pay':
+                case 'expense_pay_via_app':
+                    descriptionContent = h.fundName || 'N/A';
+                    break;
+                case 'transfer':
+                    descriptionContent = h.fromFund && h.toFund ? `${h.fromFund} → ${h.toFund}` : 'Transfer';
+                    break;
+                case 'fund_edit':
+                    descriptionContent = h.fundNameBeforeEdit || (h.changedProperties && h.changedProperties.name ? h.changedProperties.name.to : 'Fund Edited');
+                    break;
+                case 'emi_deduction_processed':
+                    if (h.details && h.details.length === 1) {
+                        const detailParts = h.details[0].split(':');
+                        descriptionContent = detailParts[0].trim();
+                    } else if (h.details && h.details.length > 1) {
+                        descriptionContent = 'Multiple EMIs';
+                    } else {
+                        descriptionContent = 'EMI Processed';
+                    }
+                    break;
+                case 'income_set':
+                    descriptionContent = 'Income Update';
+                    break;
+                case 'funds_auto_imported':
+                case 'funds_copied':
+                    descriptionContent = `Funds from ${h.fromMonth || 'Previous Month'}`;
+                    break;
+                case 'revert_action':
+                    if (h.description && h.description.toLowerCase().includes("from ")) {
+                        const parts = h.description.split("from ");
+                        if (parts.length > 1) {
+                            const fundPart = parts[1].split('.')[0].trim().replace(/'/g, "");
+                            descriptionContent = `Revert: ${fundPart}`;
+                        } else {
+                            descriptionContent = 'Transaction Reverted';
+                        }
+                    } else if (h.description && h.description.toLowerCase().includes("income set")) {
+                         descriptionContent = 'Revert: Income Set';
+                    } else {
+                        descriptionContent = 'Transaction Reverted';
+                    }
+                    break;
+                default:
+                    descriptionContent = h.fundName || (h.type ? h.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A');
+            }
+            cellDesc.textContent = descriptionContent;
 
-          cellDate.textContent = new Date(h.timestamp).toLocaleDateString();
-          cellDesc.textContent = h.description;
-          cellAmount.textContent = h.amount ? `${currentCurrencySymbol}${h.amount.toFixed(2)}` : '-';
-          cellType.textContent = h.type ? h.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A';
-      });
-
-
-      const loanEmiCategories = categories.filter(cat => cat.deductionType === 'auto' && cat.type === 'expense');
-      const dailyExpenseCategories = categories.filter(cat => cat.deductionType === 'manual' && cat.type === 'expense');
-      const investmentCategories = categories.filter(cat => cat.type === 'investment');
-
-
-      const prevMonthDataExists = monthlyData[getPreviousMonthYearString(currentMonth)] && monthlyData[getPreviousMonthYearString(currentMonth)].categories.length > 0;
-      copyFundsBtn.style.display = (categories.length === 0 && prevMonthDataExists) ? 'block' : 'none';
-
-      function applyWarningBorder(fundTablet, fund) {
-          if (fund.deductionType === 'manual' && fund.initialBalance > 0) {
-              const remainingPercentage = (fund.balance / fund.initialBalance) * 100;
-              fundTablet.classList.remove('warning-orange', 'warning-red');
-              if (remainingPercentage <= 10) {
-                  fundTablet.classList.add('warning-red');
-              } else if (remainingPercentage <= 50) {
-                  fundTablet.classList.add('warning-orange');
-              }
-          } else {
-              fundTablet.classList.remove('warning-orange', 'warning-red');
-          }
-      }
-
-      const renderFundAsTablet = (fund, index) => {
-          const fundTablet = document.createElement('div');
-          fundTablet.className = 'fund-tablet';
-          fundTablet.dataset.fundIndex = index;
-          fundTablet.onclick = () => openEditFundModal(index);
-
-          const dueDayText = (fund.deductionType === 'auto' && fund.dueDay)
-                            ? `<div class="fund-due-day">Due: ${formatDueDate(fund.dueDay, currentMonth)}</div>`
-                            : '';
-
-          let amountDisplay;
-          let bottomText = '';
-
-          if (fund.type === 'investment' && fund.deductionType === 'auto') {
-              amountDisplay = `${currentCurrencySymbol}${fund.emiAmount.toFixed(2)}`;
-              bottomText = `Auto-Invested`;
-          } else if (fund.type === 'investment' && fund.deductionType === 'manual') {
-              amountDisplay = `${currentCurrencySymbol}${fund.balance.toFixed(2)}`;
-              bottomText = `Invested: ${currentCurrencySymbol}${fund.spent.toFixed(2)}`;
-          } else if (fund.type === 'expense' && fund.deductionType === 'auto') {
-              amountDisplay = `${currentCurrencySymbol}${fund.emiAmount.toFixed(2)}`;
-              bottomText = `Auto-Deduct`;
-          } else { // Manual Expense
-              amountDisplay = `${currentCurrencySymbol}${fund.balance.toFixed(2)}`;
-          }
-
-          fundTablet.innerHTML = `
-              <div class="fund-tablet-header">
-                  <strong>${fund.name}</strong>
-                  </div>
-              ${dueDayText}
-              <div class="fund-tablet-amount">${amountDisplay}</div>
-              ${bottomText ? `<div style="font-size:0.8em; text-align:center; margin-top:5px;">${bottomText}</div>` : ''}
-          `;
-          applyWarningBorder(fundTablet, fund);
-          return fundTablet;
-      };
-
-
-      if (loanEmiCategories.length > 0) {
-        loanEmiCategories.forEach((cat) => {
-            const actualIndex = categories.findIndex(f => f.name === cat.name);
-            loanEmiFundsDiv.appendChild(renderFundAsTablet(cat, actualIndex));
+            cellAmount.textContent = h.amount ? `${currentCurrencySymbol}${h.amount.toFixed(2)}` : '-';
+            
+            let displayType = h.type ? h.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A';
+            if (h.type && (h.type.startsWith('expense_') || h.type === 'emi_deduction_processed')) {
+                displayType = 'Expense';
+            } else if (h.type === 'fund_creation' || h.type === 'personal_fund_creation' || h.type === 'fund_edit' || h.type === 'fund_deletion' || h.type === 'funds_auto_imported' || h.type === 'funds_copied') {
+                displayType = 'Fund Action';
+            } else if (h.type === 'income_set') {
+                displayType = 'Income';
+            } else if (h.type === 'transfer') {
+                displayType = 'Transfer';
+            } else if (h.type === 'revert_action') {
+                displayType = 'Correction';
+            }
+            cellType.textContent = displayType;
         });
-      } else {
-          loanEmiFundsDiv.innerHTML = '<p style="text-align: center; font-size: 0.9em; color: var(--text-color); grid-column: 1 / -1;">No Loan & EMI funds created.</p>';
-      }
-
-      if (dailyExpenseCategories.length > 0) {
-        dailyExpenseCategories.forEach((cat) => {
-             const actualIndex = categories.findIndex(f => f.name === cat.name);
-            dailyExpenseFundsDiv.appendChild(renderFundAsTablet(cat, actualIndex));
-        });
-      } else {
-          dailyExpenseFundsDiv.innerHTML = '<p style="text-align: center; font-size: 0.9em; color: var(--text-color); grid-column: 1 / -1;">No Daily Expense funds created.</p>';
-      }
-
-      if (investmentCategories.length > 0) {
-        investmentCategories.forEach((cat) => {
-            const actualIndex = categories.findIndex(f => f.name === cat.name);
-            investmentFundsDiv.appendChild(renderFundAsTablet(cat, actualIndex));
-        });
-      } else {
-          investmentFundsDiv.innerHTML = '<p style="text-align: center; font-size: 0.9em; color: var(--text-color); grid-column: 1 / -1;">No Investment funds created.</p>';
-      }
-
-
-      categories.forEach((cat, index) => {
-        if (cat.type === 'expense' && cat.deductionType !== 'auto') {
-            paySelect.innerHTML += `<option value='${index}'>${cat.name} (${currentCurrencySymbol}${cat.balance.toFixed(2)})</option>`;
-        }
-        if (cat.type === 'expense' && cat.deductionType === 'manual') {
-            transferFromSelect.innerHTML += `<option value='${index}'>${cat.name} (${currentCurrencySymbol}${cat.balance.toFixed(2)})</option>`;
-            transferToSelect.innerHTML += `<option value='${index}'>${cat.name} (${currentCurrencySymbol}${cat.balance.toFixed(2)})</option>`;
-        }
-      });
-
-      const totalSpent = categories.reduce((sum, cat) => sum + cat.spent, 0);
-      displayTotalExpensesSpan.textContent = totalSpent.toFixed(2);
-      totalBalanceSpan.textContent = (monthlyIncome - totalSpent).toFixed(2);
-
-      let totalManualExpenses = 0;
-      let totalAutoDeductExpenses = 0;
-      let totalInvestments = 0;
-
-      categories.forEach(cat => {
-          if (cat.type === 'expense') {
-              if (cat.deductionType === 'auto') {
-                  totalAutoDeductExpenses += cat.spent;
-              } else {
-                  totalManualExpenses += cat.spent;
-              }
-          } else if (cat.type === 'investment') {
-              totalInvestments += cat.spent;
-          }
-      });
-
-      expenseSummaryTextDiv.innerHTML = `
-          <p>Total Manual Expenses: <strong>${currentCurrencySymbol}${totalManualExpenses.toFixed(2)}</strong></p>
-          <p>Total Auto-Deduct (EMI/Loan) Expenses: <strong>${currentCurrencySymbol}${totalAutoDeductExpenses.toFixed(2)}</strong></p>
-          <p>Total Investments: <strong>${currentCurrencySymbol}${totalInvestments.toFixed(2)}</strong></p>
-          <p>Overall Total Expenses: <strong>${currentCurrencySymbol}${totalSpent.toFixed(2)}</strong></p>
-      `;
-
-      renderPieChart(categories);
-      renderDashboardGauges();
-      checkAndAddNotifications();
     }
+
+    // --- END OF MODIFIED HISTORY TABLE POPULATION ---
+
+    const loanEmiCategories = categories.filter(cat => cat.deductionType === 'auto' && cat.type === 'expense');
+    const dailyExpenseCategories = categories.filter(cat => cat.deductionType === 'manual' && cat.type === 'expense');
+    const investmentCategories = categories.filter(cat => cat.type === 'investment');
+
+    const prevMonthStr = getPreviousMonthYearString(currentMonth);
+    const prevMonthDataExists = monthlyData[prevMonthStr] && monthlyData[prevMonthStr].categories && monthlyData[prevMonthStr].categories.length > 0;
+    if (copyFundsBtn) { // Check if element exists
+        copyFundsBtn.style.display = (categories.length === 0 && prevMonthDataExists) ? 'block' : 'none';
+    }
+
+    // This function needs to be defined within render or accessible to it.
+    // It was previously nested, which is fine.
+    function applyWarningBorder(fundTablet, fund) {
+        if (fund.deductionType === 'manual' && fund.initialBalance > 0 && fund.type === 'expense') { // Only for manual expense funds
+            const remainingPercentage = (fund.balance / fund.initialBalance) * 100;
+            fundTablet.classList.remove('warning-orange', 'warning-red'); // Clear previous warnings
+            if (remainingPercentage <= 10) {
+                fundTablet.classList.add('warning-red');
+            } else if (remainingPercentage <= 50) {
+                fundTablet.classList.add('warning-orange');
+            }
+        } else {
+            fundTablet.classList.remove('warning-orange', 'warning-red');
+        }
+    }
+
+    const renderFundAsTablet = (fund, originalIndex) => { // Use originalIndex from main categories array
+        const fundTablet = document.createElement('div');
+        fundTablet.className = 'fund-tablet';
+        // fundTablet.dataset.fundIndex = originalIndex; // Using originalIndex for consistency if edit uses it
+        fundTablet.onclick = () => openEditFundModal(originalIndex); // Pass original index
+
+        const dueDayText = (fund.deductionType === 'auto' && fund.dueDay)
+                        ? `<div class="fund-due-day">Due: ${formatDueDate(fund.dueDay, currentMonth)}</div>`
+                        : '';
+
+        let amountDisplay;
+        let bottomText = '';
+
+        if (fund.type === 'investment' && fund.deductionType === 'auto') {
+            amountDisplay = `${currentCurrencySymbol}${fund.emiAmount ? fund.emiAmount.toFixed(2) : '0.00'}`;
+            bottomText = `Auto-Invested`;
+        } else if (fund.type === 'investment' && fund.deductionType === 'manual') {
+            amountDisplay = `${currentCurrencySymbol}${fund.balance ? fund.balance.toFixed(2) : '0.00'}`;
+            bottomText = `Invested: ${currentCurrencySymbol}${fund.spent ? fund.spent.toFixed(2) : '0.00'}`;
+        } else if (fund.type === 'expense' && fund.deductionType === 'auto') {
+            amountDisplay = `${currentCurrencySymbol}${fund.emiAmount ? fund.emiAmount.toFixed(2) : '0.00'}`;
+            bottomText = `Auto-Deduct`;
+        } else { // Manual Expense or Personal Expense (if displayed here)
+            amountDisplay = `${currentCurrencySymbol}${fund.balance ? fund.balance.toFixed(2) : '0.00'}`;
+        }
+
+        fundTablet.innerHTML = `
+            <div class="fund-tablet-header">
+                <strong>${fund.name}</strong>
+            </div>
+            ${dueDayText}
+            <div class="fund-tablet-amount">${amountDisplay}</div>
+            ${bottomText ? `<div style="font-size:0.8em; text-align:center; margin-top:5px;">${bottomText}</div>` : ''}
+        `;
+        applyWarningBorder(fundTablet, fund);
+        return fundTablet;
+    };
+
+    if (loanEmiFundsDiv) {
+        if (loanEmiCategories.length > 0) {
+            loanEmiCategories.forEach((cat) => {
+                const actualIndex = categories.findIndex(f => f.id === cat.id || (!f.id && !cat.id && f.name === cat.name)); // Match by ID or fallback to name
+                if (actualIndex !== -1) loanEmiFundsDiv.appendChild(renderFundAsTablet(cat, actualIndex));
+            });
+        } else {
+            loanEmiFundsDiv.innerHTML = '<p style="text-align: center; font-size: 0.9em; color: var(--text-color); grid-column: 1 / -1;">No Loan & EMI funds created.</p>';
+        }
+    }
+
+    if (dailyExpenseFundsDiv) {
+        if (dailyExpenseCategories.length > 0) {
+            dailyExpenseCategories.forEach((cat) => {
+                const actualIndex = categories.findIndex(f => f.id === cat.id || (!f.id && !cat.id && f.name === cat.name)); // Match by ID or fallback to name
+                if (actualIndex !== -1) dailyExpenseFundsDiv.appendChild(renderFundAsTablet(cat, actualIndex));
+            });
+        } else {
+            dailyExpenseFundsDiv.innerHTML = '<p style="text-align: center; font-size: 0.9em; color: var(--text-color); grid-column: 1 / -1;">No Daily Expense funds created.</p>';
+        }
+    }
+
+    if (investmentFundsDiv) {
+        if (investmentCategories.length > 0) {
+            investmentCategories.forEach((cat) => {
+                const actualIndex = categories.findIndex(f => f.id === cat.id || (!f.id && !cat.id && f.name === cat.name)); // Match by ID or fallback to name
+                if (actualIndex !== -1) investmentFundsDiv.appendChild(renderFundAsTablet(cat, actualIndex));
+            });
+        } else {
+            investmentFundsDiv.innerHTML = '<p style="text-align: center; font-size: 0.9em; color: var(--text-color); grid-column: 1 / -1;">No Investment funds created.</p>';
+        }
+    }
+    
+    // Populate dropdowns
+    if (paySelect) { // Ensure paySelect exists
+        categories.forEach((cat, index) => {
+            // MODIFIED CONDITION TO INCLUDE MANUAL INVESTMENT FUNDS:
+            if (
+                (cat.type === 'expense' && cat.deductionType === 'manual') || 
+                (cat.type === 'investment' && cat.deductionType === 'manual')
+            ) {
+                // Ensure we use the correct index from the main 'categories' array
+                // if 'cat' comes from a pre-filtered list, ensure 'index' is its original index.
+                // Assuming 'categories' here is the full, unfiltered list for the current month.
+                paySelect.innerHTML += `<option value='${index}'>${cat.name} (${currentCurrencySymbol}${cat.balance.toFixed(2)})</option>`;
+            }
+        });
+    }
+    
+    if (transferFromSelect && transferToSelect) { // Ensure these selects exist
+        categories.forEach((cat, index) => {
+            // Current logic for transfers (expenses only, no auto-deduct, no personal) is likely fine
+            if (cat.type === 'expense' && cat.deductionType === 'manual' && !cat.isPersonal) { 
+                transferFromSelect.innerHTML += `<option value='${index}'>${cat.name} (${currentCurrencySymbol}${cat.balance.toFixed(2)})</option>`;
+                transferToSelect.innerHTML += `<option value='${index}'>${cat.name} (${currentCurrencySymbol}${cat.balance.toFixed(2)})</option>`;
+            }
+        });
+    }
+
+    const totalSpent = categories.reduce((sum, cat) => sum + (cat.spent || 0), 0);
+    if (displayTotalExpensesSpan) displayTotalExpensesSpan.textContent = totalSpent.toFixed(2);
+    if (totalBalanceSpan) totalBalanceSpan.textContent = (monthlyIncome - totalSpent).toFixed(2);
+
+    let totalManualExpenses = 0;
+    let totalAutoDeductExpenses = 0;
+    let totalInvestments = 0;
+
+    categories.forEach(cat => {
+        if (cat.isPersonal) return; // Exclude personal funds from these shared summaries
+        if (cat.type === 'expense') {
+            if (cat.deductionType === 'auto') {
+                totalAutoDeductExpenses += (cat.spent || 0);
+            } else {
+                totalManualExpenses += (cat.spent || 0);
+            }
+        } else if (cat.type === 'investment') {
+            totalInvestments += (cat.spent || 0);
+        }
+    });
+
+    if (expenseSummaryTextDiv) {
+        expenseSummaryTextDiv.innerHTML = `
+            <p>Total Manual Expenses: <strong>${currentCurrencySymbol}${totalManualExpenses.toFixed(2)}</strong></p>
+            <p>Total Auto-Deduct (EMI/Loan) Expenses: <strong>${currentCurrencySymbol}${totalAutoDeductExpenses.toFixed(2)}</strong></p>
+            <p>Total Investments: <strong>${currentCurrencySymbol}${totalInvestments.toFixed(2)}</strong></p>
+            <p>Overall Total Budgeted Spending: <strong>${currentCurrencySymbol}${totalSpent.toFixed(2)}</strong></p>
+        `;
+    }
+
+    // Filter out personal funds before sending to pie chart if it's meant for shared view
+    const categoriesForPieChart = categories.filter(cat => !cat.isPersonal);
+    renderPieChart(categoriesForPieChart); 
+    renderDashboardGauges(); // This also uses the main 'categories' which might include personal ones if not filtered.
+                             // Consider if gauges should reflect personal spending or only shared. Assuming shared for now.
+    checkAndAddNotifications(); // This might need adjustment if notifications are based on personal funds too.
+}
 
     function renderPieChart(categories) {
         const ctx = document.getElementById('expensePieChart').getContext('2d');
@@ -1216,23 +1347,32 @@ async function saveAppSettings() {
     }
 
 
-    async function createFundFromModal(fundDetailsFromBot = null) {
-        const currentMonthData = getCurrentMonthData();
-        if (currentMonthData.income <= 0 && !fundDetailsFromBot) {
-            await showAlert('Please set your monthly income first before creating a fund.', 'Set Income Required');
+async function createFundFromModal(fundDetailsFromBot = null) {
+    const name = fundDetailsFromBot ? fundDetailsFromBot.name : document.getElementById('modalNewFundName').value.trim();
+    const amount = fundDetailsFromBot ? fundDetailsFromBot.amount : parseFloat(document.getElementById('modalNewFundAmount').value);
+    const fundType = fundDetailsFromBot ? fundDetailsFromBot.type : document.querySelector('input[name="modalFundType"]:checked').value;
+
+    let deductionType = 'manual'; // Default, especially for personal_expense
+    let dueDay = null;
+
+    // Income check and auto-deduct details are only relevant for non-personal funds
+    if (fundType !== 'personal_expense') {
+        const mainCurrentMonthData = getCurrentMonthData(); // For checking income
+        if (mainCurrentMonthData.income <= 0 && !fundDetailsFromBot) {
+            await showAlert('Please set your monthly income first before creating a shared/investment fund.', 'Set Income Required');
             highlightElement('monthlyIncomeInput', 4000);
-            document.getElementById('monthlyIncomeInput').focus();
-            document.getElementById('monthlyIncomeInput').closest('.card').style.display = 'block';
+            const monthlyIncomeInputEl = document.getElementById('monthlyIncomeInput');
+            if (monthlyIncomeInputEl) {
+                monthlyIncomeInputEl.focus();
+                const parentCard = monthlyIncomeInputEl.closest('.card');
+                if (parentCard) parentCard.style.display = 'block';
+            }
             closeCreateFundModal();
             return false;
         }
 
-        const name = fundDetailsFromBot ? fundDetailsFromBot.name : document.getElementById('modalNewFundName').value.trim();
-        const amount = fundDetailsFromBot ? fundDetailsFromBot.amount : parseFloat(document.getElementById('modalNewFundAmount').value);
-        const fundType = fundDetailsFromBot ? fundDetailsFromBot.type : document.querySelector('input[name="modalFundType"]:checked').value;
-        const deductionType = fundDetailsFromBot ? fundDetailsFromBot.deductionType : (document.getElementById('modalIsAutoDeduct').checked ? 'auto' : 'manual');
-        let dueDay = fundDetailsFromBot ? fundDetailsFromBot.dueDay : null;
-
+        // Get deductionType and dueDay only if not a personal expense
+        deductionType = fundDetailsFromBot ? fundDetailsFromBot.deductionType : (document.getElementById('modalIsAutoDeduct').checked ? 'auto' : 'manual');
         if (!fundDetailsFromBot && deductionType === 'auto') {
             const dueDayInput = document.getElementById('modalNewFundDueDay');
             const dueDayValue = parseInt(dueDayInput.value);
@@ -1240,85 +1380,147 @@ async function saveAppSettings() {
                 await showAlert('Please enter a valid Due Day (1-31) or leave it blank for auto-deductible funds.');
                 return false;
             }
-            if(dueDayInput.value) dueDay = dueDayValue;
+            if (dueDayInput.value) dueDay = dueDayValue;
         }
-
-
-        const currentCurrencySymbol = currencySymbols[appSettings.currency];
-
-        if (!name || isNaN(amount) || amount < 0) {
-            if (!fundDetailsFromBot) await showAlert('Please enter a valid fund name and a non-negative initial amount.');
-            return false;
-        }
-
-        if (deductionType === 'auto' && amount <= 0) {
-             if (!fundDetailsFromBot) await showAlert('For auto-deductible funds, the initial amount must be a positive value.');
-             return false;
-        }
-
-        const existingFund = currentMonthData.categories.find(cat => cat.name.toLowerCase() === name.toLowerCase());
-        if (existingFund) {
-            if (!fundDetailsFromBot) await showAlert(`A fund with the name '${name}' already exists. Please choose a different name.`);
-            return false;
-        }
-
-        let newFund = {
-            name,
-            initialBalance: amount,
-            type: fundType,
-            deductionType: deductionType,
-            emiAmount: 0,
-            balance: amount,
-            spent: 0,
-            dueDay: deductionType === 'auto' ? dueDay : null
-        };
-
-        if (deductionType === 'auto') {
-            newFund.emiAmount = amount;
-            newFund.balance = amount - newFund.emiAmount;
-            newFund.spent = newFund.emiAmount;
-        } else {
-            if (fundType === 'investment') {
-                newFund.spent = amount;
-            } else {
-                newFund.spent = 0;
-            }
-        }
-
-
-        currentMonthData.categories.push(newFund);
-        let historyDescription = `Created new ${fundType} fund '${name}' with ${currentCurrencySymbol}${amount.toFixed(2)} (Deduction: ${deductionType === 'auto' ? `Auto, EMI: ${currentCurrencySymbol}${newFund.emiAmount.toFixed(2)}` : 'Manual'})`;
-        if (deductionType === 'auto' && newFund.dueDay) {
-            historyDescription += `, Due: ${formatDueDate(newFund.dueDay, currentMonth)}`;
-        }
-        addToHistory({
-            type: 'fund_creation',
-            fundName: name,
-            amount: amount,
-            fundType: fundType,
-            deductionType: deductionType,
-            dueDay: newFund.dueDay,
-            description: historyDescription
-        });
-        showToast(`Fund '${name}' created!`);
-
-        if (!fundDetailsFromBot) {
-            document.getElementById('modalNewFundName').value = '';
-            document.getElementById('modalNewFundAmount').value = '';
-            document.getElementById('modalNewFundDueDay').value = '';
-            document.querySelector('input[name="modalFundType"][value="expense"]').checked = true;
-            document.getElementById('modalIsAutoDeduct').checked = false;
-            toggleModalAutoDeductOptions();
-            closeCreateFundModal();
-        }
-        render();
-
-        if (localStorage.getItem('tutorialShown') !== 'true' && currentTutorialStep === 1 && !fundDetailsFromBot) {
-            currentTutorialStep++;
-            setTimeout(showNextTutorialStep, 300);
-        }
-        return true;
+    } else {
+        // Personal expenses are always 'manual' and have no 'dueDay' in this design
+        deductionType = 'manual';
+        dueDay = null;
     }
+
+    const currentCurrencySymbol = currencySymbols[appSettings.currency];
+
+    if (!name || isNaN(amount) || amount < 0) {
+        if (!fundDetailsFromBot) await showAlert('Please enter a valid fund name and a non-negative initial amount.');
+        return false;
+    }
+
+    // Auto-deduct amount must be positive (only applies to non-personal funds)
+    if (fundType !== 'personal_expense' && deductionType === 'auto' && amount <= 0) {
+        if (!fundDetailsFromBot) await showAlert('For auto-deductible funds, the amount must be a positive value.');
+        return false;
+    }
+
+    // --- Generate Unique ID for the new fund ---
+    const newFundId = 'fund_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+
+    let newFund = {
+        id: newFundId, // Unique ID
+        name,
+        initialBalance: amount,
+        type: fundType,
+        deductionType: deductionType,
+        emiAmount: 0,
+        balance: amount,
+        spent: 0,
+        dueDay: (fundType !== 'personal_expense' && deductionType === 'auto') ? dueDay : null,
+        isPersonal: fundType === 'personal_expense' // Flag to identify personal funds
+    };
+
+    if (fundType !== 'personal_expense' && deductionType === 'auto') {
+        newFund.emiAmount = amount;
+        // For auto-deduct, balance might reflect post-deduction if it's immediate,
+        // or initialBalance IS the EMI and balance starts effectively reduced.
+        // Let's assume for auto-deduct, 'initialBalance' is the EMI value, 'spent' is the EMI, 'balance' is 0 or reflects remaining if it was a top-up.
+        // For simplicity, let's consider 'initialBalance' as the total allocated/EMI amount, and 'spent' as the deducted amount.
+        newFund.balance = newFund.initialBalance - newFund.emiAmount; // Or 0 if it's purely an EMI bucket
+        newFund.spent = newFund.emiAmount;
+    } else if (fundType === 'investment' && deductionType === 'manual') { // Manual Investment
+        newFund.spent = amount; // Assume initial amount is "spent" into investment
+        // newFund.balance remains initialBalance or could be 0 if it's purely tracking outflow.
+        // For consistency with expense funds where balance means "remaining usable", let's set balance for manual investment.
+        // If you want investment 'balance' to mean 'current value', that's a different concept.
+        // For now, let's assume 'balance' is similar to expense funds.
+    }
+    // For manual expense and personal_expense, initialBalance = balance, spent = 0 initially.
+
+    let targetCategoriesArray;
+    let targetHistoryArray;
+    let historyTransactionType;
+    let saveTargetDataFunction;
+
+    if (newFund.isPersonal) {
+        const currentPersonalMonth = getCurrentPersonalMonthData();
+        targetCategoriesArray = currentPersonalMonth.categories;
+        targetHistoryArray = currentPersonalMonth.history;
+        historyTransactionType = 'personal_fund_creation';
+        saveTargetDataFunction = savePersonalData; // Save to localStorage for personal data
+
+        // Check for existing personal fund with the same name
+        const existingPersonalFund = targetCategoriesArray.find(cat => cat.name.toLowerCase() === name.toLowerCase());
+        if (existingPersonalFund) {
+            if (!fundDetailsFromBot) await showAlert(`A personal fund with the name '${name}' already exists. Please choose a different name.`);
+            return false;
+        }
+    } else {
+        const mainCurrentMonthData = getCurrentMonthData();
+        targetCategoriesArray = mainCurrentMonthData.categories;
+        targetHistoryArray = mainCurrentMonthData.history; // Main history is handled by global addToHistory
+        historyTransactionType = 'fund_creation';
+        saveTargetDataFunction = saveData; // Main saveData handles localStorage/Firestore based on mode
+
+        // Check for existing shared/individual (non-personal) fund
+        const existingMainFund = targetCategoriesArray.find(cat => cat.name.toLowerCase() === name.toLowerCase());
+        if (existingMainFund) {
+            if (!fundDetailsFromBot) await showAlert(`A fund with the name '${name}' already exists for shared/individual budgets. Please choose a different name.`);
+            return false;
+        }
+    }
+
+    targetCategoriesArray.push(newFund);
+    
+    let historyDescription = `Created new ${newFund.isPersonal ? 'personal ' : ''}${fundType.replace('_', ' ')} fund '${name}' with ${currentCurrencySymbol}${amount.toFixed(2)}`;
+    if (!newFund.isPersonal && deductionType === 'auto') {
+        historyDescription += ` (Auto-Deduct EMI: ${currentCurrencySymbol}${newFund.emiAmount.toFixed(2)})`;
+        if (newFund.dueDay) historyDescription += `, Due: ${formatDueDate(newFund.dueDay, currentMonth)}`;
+    }
+
+    const historyEntry = {
+        timestamp: new Date().toISOString(),
+        type: historyTransactionType,
+        fundName: name,
+        amount: amount,
+        fundType: fundType,
+        deductionType: deductionType,
+        dueDay: newFund.dueDay,
+        description: historyDescription,
+        fundId: newFund.id // Store fund ID in history for better tracking
+    };
+
+    if (newFund.isPersonal) {
+        targetHistoryArray.unshift(historyEntry); // Add to personal history
+        savePersonalData(); // Save personal data to localStorage
+    } else {
+        addToHistory(historyEntry); // Adds to main monthlyData.history
+        // saveData() for main data will be called by render()
+    }
+    
+    showToast(`Fund '${name}' created!`);
+
+    if (!fundDetailsFromBot) {
+        document.getElementById('modalNewFundName').value = '';
+        document.getElementById('modalNewFundAmount').value = '';
+        const modalDueDayInput = document.getElementById('modalNewFundDueDay');
+        if (modalDueDayInput) modalDueDayInput.value = '';
+        const expenseRadio = document.querySelector('input[name="modalFundType"][value="expense"]');
+        if (expenseRadio) expenseRadio.checked = true;
+        const autoDeductCheckbox = document.getElementById('modalIsAutoDeduct');
+        if (autoDeductCheckbox) autoDeductCheckbox.checked = false;
+        
+        toggleModalAutoDeductOptions(); // Call this to reset UI based on default "expense" type
+        closeCreateFundModal();
+    }
+    
+    render(); // This will also call saveData() for the main monthlyData
+
+    // Tutorial logic
+    if (localStorage.getItem('tutorialShown') !== 'true' && currentTutorialStep === 1 && !fundDetailsFromBot) {
+        currentTutorialStep++;
+        setTimeout(showNextTutorialStep, 300);
+    }
+    return true;
+}
+
 
     const createFundModal = document.getElementById('createFundModal');
     function openCreateFundModal() {
@@ -1732,8 +1934,8 @@ async function handlePay(payDetailsFromBot = null) {
         await showAlert(`Fund '${fundName}' not found.`);
         return false;
     }
-    if (fundToPayFrom.type !== 'expense') {
-        await showAlert('You can only log expenses from Expense funds.');
+    if (!fundToPayFrom) {
+        await showAlert(`Fund '${fundName}' not found.`);
         return false;
     }
     if (fundToPayFrom.deductionType === 'auto') {
@@ -1965,7 +2167,332 @@ async function handlePay(payDetailsFromBot = null) {
         }
     }
 
+// Place this with your other event handling functions
 
+let isSwitchingMode = false; // Flag to prevent re-entrant calls
+
+// Replace your existing handleModeChangeAttempt function
+async function handleModeChangeAttempt(newMode) {
+    if (isSwitchingMode) {
+        console.log("Mode switch already in progress.");
+        const oldModeRadio = document.querySelector(`input[name="budgetModeOption"][value="${appSettings.budgetMode}"]`);
+        if (oldModeRadio) oldModeRadio.checked = true;
+        return;
+    }
+    isSwitchingMode = true;
+
+    const oldMode = appSettings.budgetMode;
+    console.log(`Attempting to switch mode from ${oldMode} to ${newMode}`);
+
+    if (newMode === oldMode) {
+        isSwitchingMode = false;
+        return; // No change
+    }
+
+    const inMemoryMonthlyDataBeforeSwitch = JSON.parse(JSON.stringify(monthlyData));
+    const inMemoryAppSettingsBeforeSwitch = JSON.parse(JSON.stringify(appSettings));
+
+    if (newMode === 'individual' && oldMode === 'shared') {
+        // User is in Shared mode and selected Individual mode
+        if (currentUser) { // Only if currently logged in to shared mode
+            pendingSwitchToIndividualMode = true; // Set flag
+            await showAlert("To switch to Individual Planner mode, please log out. You will be asked if you want to copy your current shared data for local use during the logout process.", "Logout Required");
+            // Revert the radio button UI to 'shared' as the mode change is deferred
+            const sharedModeRadio = document.querySelector(`input[name="budgetModeOption"][value="shared"]`);
+            if (sharedModeRadio) sharedModeRadio.checked = true;
+            isSwitchingMode = false;
+            return; // Actual switch will happen on logout
+        } else {
+            // Was in shared mode but not logged in (unusual, but handle gracefully)
+            // Simply switch to individual mode and load local data.
+            appSettings.budgetMode = 'individual';
+            // Fall through to common logic at the end.
+        }
+    } else if (newMode === 'shared' && oldMode === 'individual') {
+        // Switching from Individual (localStorage) to Shared (Firestore)
+        // This part remains the same as before, with the pendingLocalDataUpload flag.
+        appSettings.budgetMode = 'shared'; 
+        saveLocalAppSettings();         
+        pendingLocalDataUpload = true;  
+
+        console.log("Switched to Shared mode. Pending local data upload decision after login.");
+
+        if (!currentUser) { 
+            await showAlert("You've switched to Shared Planner mode. Please log in or sign up. After logging in, you'll be asked if you want to upload your existing local data.");
+        } else {
+            console.log("User already logged in to Firebase. Upload prompt will appear if needed.");
+            await processPendingUploadIfNeeded(currentUser); 
+            if (budgetListenerUnsubscribe) { budgetListenerUnsubscribe(); budgetListenerUnsubscribe = null; }
+            setupFirestoreListenerForUser(currentUser);
+        }
+    } else { 
+        // Handles direct switch if not from shared-logged-in to individual,
+        // or if already in the target mode (though initial check should catch this).
+        appSettings.budgetMode = newMode;
+    }
+
+    // Common actions after attempting a mode change (unless returned early)
+    saveLocalAppSettings(); // Save the potentially new appSettings.budgetMode to localStorage
+    updateAuthUIVisibility();
+
+    if (appSettings.budgetMode === 'individual') {
+        // This block now runs if switching from shared (but not logged in) to individual,
+        // or if switched from something else directly to individual.
+        if (budgetListenerUnsubscribe) {
+            console.log("Ensuring Firestore listener is detached for Individual mode.");
+            budgetListenerUnsubscribe();
+            budgetListenerUnsubscribe = null;
+        }
+        currentUser = null; // For app context in individual mode
+
+        monthlyData = JSON.parse(localStorage.getItem('monthlyData')) || {};
+        for (const monthKey in monthlyData) { /* ... your full sanitization logic ... */ } //
+
+        let localAppSettings = JSON.parse(localStorage.getItem('appSettings')) || {};
+        appSettings = { ...appSettings, ...localAppSettings, budgetMode: 'individual' };
+        if (!appSettings.notifications) appSettings.notifications = [];
+
+        console.log("Mode is Individual. Loaded data from localStorage.");
+        render();
+    } else if (appSettings.budgetMode === 'shared' && currentUser) {
+        // If already logged in and switched to shared (and didn't go through individual->shared upload path above)
+        // ensure listener is active.
+        // This path is less likely if upload logic is correctly triggered.
+        if (!budgetListenerUnsubscribe) {
+            console.log("Ensuring listener is active for shared mode (already logged in).");
+            setupFirestoreListenerForUser(currentUser);
+        }
+    }
+    // If newMode is 'shared' and !currentUser, UI shows login prompt. render() might show empty state.
+    if (newMode === 'shared' && !currentUser) {
+        render();
+    }
+
+    showToast(`Budget mode preference set to ${appSettings.budgetMode === 'shared' ? 'Shared Planner' : 'Individual Planner'}.`);
+    isSwitchingMode = false;
+}
+
+// New helper function to process pending upload, can be called from onAuthStateChanged or handleModeChangeAttempt
+// Replace your existing processPendingUploadIfNeeded function
+async function processPendingUploadIfNeeded(user) {
+    if (appSettings.budgetMode === 'shared' && pendingLocalDataUpload && user) {
+        pendingLocalDataUpload = false; // Reset flag: attempt this only once per switch
+        console.log("Processing pending local data upload to shared budget.");
+
+        // Retrieve current local data that needs to be merged/uploaded
+        const localMonthlyDataToUpload = JSON.parse(localStorage.getItem('monthlyData')) || {};
+        // Full sanitization for localMonthlyDataToUpload
+        for (const monthKey in localMonthlyDataToUpload) {
+            if (localMonthlyDataToUpload.hasOwnProperty(monthKey)) {
+                const month = localMonthlyDataToUpload[monthKey];
+                if (month.hasOwnProperty('income')) month.income = parseFloat(month.income) || 0;
+                if (month.categories && Array.isArray(month.categories)) {
+                    month.categories.forEach(cat => {
+                        // Ensure all local funds have IDs before merging
+                        if (!cat.id) {
+                            cat.id = 'fund_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9) + '_migrated';
+                        }
+                        cat.initialBalance = parseFloat(cat.initialBalance) || 0;
+                        cat.balance = parseFloat(cat.balance) || 0;
+                        cat.spent = parseFloat(cat.spent) || 0;
+                        if (cat.hasOwnProperty('emiAmount')) cat.emiAmount = parseFloat(cat.emiAmount) || 0;
+                        if (cat.hasOwnProperty('dueDay') && cat.dueDay !== null) cat.dueDay = parseInt(cat.dueDay, 10) || null;
+                    });
+                }
+                if (!month.history) month.history = [];
+                 // Ensure local history items have a unique enough key for de-duplication if possible
+                month.history.forEach(h => {
+                    if(!h.id && h.timestamp && h.description) { // Create a simple ID if missing for de-duplication
+                        h.id = `hist_${new Date(h.timestamp).getTime()}_${h.description.slice(0,10).replace(/\s/g,'')}`;
+                    }
+                });
+                if (!month.hasOwnProperty('emiDeducted')) month.emiDeducted = false;
+                if (!month.hasOwnProperty('fundsImported')) month.fundsImported = false;
+            }
+        }
+
+        let localAppSettingsSnapshot = JSON.parse(localStorage.getItem('appSettings')) || {};
+        const shareableLocalSettings = {
+            currency: localAppSettingsSnapshot.currency || appSettings.currency || 'INR',
+            defaultPaymentApp: localAppSettingsSnapshot.defaultPaymentApp || appSettings.defaultPaymentApp || 'GPay'
+        };
+
+        // Check if there's actually any significant local data to upload
+        if (Object.keys(localMonthlyDataToUpload).length === 0 && 
+            shareableLocalSettings.currency === 'INR' && 
+            shareableLocalSettings.defaultPaymentApp === 'GPay') {
+             console.log("No significant local data to upload, or it's default. Skipping upload prompt.");
+             return; // Skip if local data is empty or default
+        }
+
+        const confirmedUpload = await showConfirm(
+            "You are now in Shared Mode.\n\nDo you want to upload your previous local budget data to this shared online budget?\n\n- 'OK' will merge your local data with the online data (local data takes precedence for common months/settings).\n- 'Cancel' will connect to the existing shared budget, and your local data won't be uploaded.",
+            "Upload Local Data to Shared?"
+        );
+
+        if (confirmedUpload) {
+            showToast("Merging local data with shared budget...");
+            try {
+                const docRef = db.collection('budgets').doc('sharedFamilyBudget');
+                const docSnap = await docRef.get();
+                let existingSharedData = { monthlyData: {}, appSettings: {} };
+
+                if (docSnap.exists) { // Use .exists (property) for compat
+                    existingSharedData = docSnap.data() || { monthlyData: {}, appSettings: {} };
+                    if (!existingSharedData.monthlyData) existingSharedData.monthlyData = {};
+                    if (!existingSharedData.appSettings) existingSharedData.appSettings = {};
+                }
+
+                // 1. Merge appSettings: Local shareable settings overwrite existing shared ones
+                const mergedAppSettings = {
+                    ...existingSharedData.appSettings, // Start with existing shared settings
+                    ...shareableLocalSettings         // Overwrite with local shareable settings
+                };
+
+                // 2. Merge monthlyData (deep merge month by month)
+                const mergedMonthlyData = { ...existingSharedData.monthlyData };
+
+                for (const monthKey in localMonthlyDataToUpload) {
+                    if (localMonthlyDataToUpload.hasOwnProperty(monthKey)) {
+                        const localMonth = localMonthlyDataToUpload[monthKey];
+                        const sharedMonth = mergedMonthlyData[monthKey];
+
+                        if (sharedMonth) { // Month exists in both local and shared
+                            console.log(`Merging month: ${monthKey}`);
+                            // Income: Local overwrites shared
+                            sharedMonth.income = localMonth.income;
+                            
+                            // Categories: Combine, ensuring uniqueness by ID
+                            // Take all local categories for the month.
+                            // Then add shared categories from that month only if their ID isn't in the local list.
+                            const localCategoryIds = new Set(localMonth.categories.map(cat => cat.id));
+                            const combinedCategories = [...localMonth.categories];
+                            if (sharedMonth.categories && Array.isArray(sharedMonth.categories)) {
+                                sharedMonth.categories.forEach(sharedCat => {
+                                    if (sharedCat.id && !localCategoryIds.has(sharedCat.id)) {
+                                        combinedCategories.push(sharedCat);
+                                    } else if (!sharedCat.id) { // if old shared fund has no ID, add it to avoid losing it
+                                        combinedCategories.push(sharedCat);
+                                    }
+                                });
+                            }
+                            sharedMonth.categories = combinedCategories;
+
+                            // History: Concatenate and simple de-duplication by ID
+                            const combinedHistory = [...(localMonth.history || [])];
+                            const localHistoryIds = new Set(combinedHistory.map(h => h.id).filter(id => id)); // Get IDs from local history
+
+                            if (sharedMonth.history && Array.isArray(sharedMonth.history)) {
+                                sharedMonth.history.forEach(sharedHist => {
+                                     // Add shared history item if its ID is not in local (or if it has no ID)
+                                    if (!sharedHist.id || !localHistoryIds.has(sharedHist.id)) {
+                                        combinedHistory.push(sharedHist);
+                                    }
+                                });
+                            }
+                            // A more robust de-duplication might be needed if IDs are not perfectly unique or consistent
+                            sharedMonth.history = combinedHistory;
+
+
+                            // Merge other month-level flags (local takes precedence or specific logic)
+                            sharedMonth.emiDeducted = localMonth.emiDeducted || sharedMonth.emiDeducted;
+                            sharedMonth.fundsImported = localMonth.fundsImported || sharedMonth.fundsImported;
+                            
+                            mergedMonthlyData[monthKey] = sharedMonth;
+                        } else {
+                            // Month exists in local but not in shared: Add local month entirely
+                            mergedMonthlyData[monthKey] = localMonth;
+                        }
+                    }
+                }
+
+                // Now save the fully merged data structure
+                await docRef.set({
+                    monthlyData: mergedMonthlyData,
+                    appSettings: mergedAppSettings
+                }); // Using .set() without merge:false on whole doc implies overwrite of fields provided
+                   // but since we constructed mergedMonthlyData and mergedAppSettings from existingSharedData,
+                   // this acts like a deep merge for these two fields.
+
+                showToast("Local data merged with shared budget. Syncing...");
+                // The onSnapshot listener (set up by setupFirestoreListenerForUser)
+                // will automatically fetch this newly merged data.
+            } catch (error) {
+                console.error("Error merging local data to Firestore:", error);
+                await showAlert("Error merging local data. Please try again.", "Merge Failed");
+                // If merge fails, the app will still proceed to listen to Firestore for existing shared data.
+            }
+        } else {
+            showToast("Skipped uploading/merging local data. Connecting to existing shared budget.");
+        }
+        // Ensure the flag is always reset
+        pendingLocalDataUpload = false;
+    }
+}
+
+
+// New Helper: Encapsulate Firestore Listener Setup
+function setupFirestoreListenerForUser(user) {
+    if (appSettings.budgetMode !== 'shared' || !user) {
+        if (budgetListenerUnsubscribe) {
+            budgetListenerUnsubscribe();
+            budgetListenerUnsubscribe = null;
+        }
+        return; // Only set up if in shared mode and user is valid
+    }
+
+    // Detach existing listener before creating a new one
+    if (budgetListenerUnsubscribe) {
+        console.log("Detaching existing Firestore listener before setting up new one.");
+        budgetListenerUnsubscribe();
+        budgetListenerUnsubscribe = null;
+    }
+
+    console.log(`Setting up Firestore listener for user: ${user.email}`);
+    const docRef = db.collection('budgets').doc('sharedFamilyBudget');
+    budgetListenerUnsubscribe = docRef.onSnapshot(docSnap => {
+        // This is the SAME onSnapshot logic from your Step 6
+        console.log("Firestore real-time update received (onSnapshot).");
+        if (docSnap.exists) {
+            // ... (Full logic to extract monthlyData, appSettings, sanitize, render) ...
+            // Refer to the onSnapshot block from Step 6 for this full logic.
+            // For brevity, I'm not repeating the entire data processing block here.
+            // Ensure it loads monthlyData, shared appSettings, sanitizes, and calls render().
+            const firestoreData = docSnap.data();
+            let dataChanged = false;
+            if (firestoreData.monthlyData) {
+                monthlyData = firestoreData.monthlyData;
+                 for (const monthKey in monthlyData) { /* ... full sanitization ... */ }
+                dataChanged = true;
+            }
+            if (firestoreData.appSettings) {
+                const sharedSettings = firestoreData.appSettings;
+                if (appSettings.currency !== sharedSettings.currency || appSettings.defaultPaymentApp !== sharedSettings.defaultPaymentApp) dataChanged = true;
+                appSettings.currency = sharedSettings.currency || appSettings.currency;
+                appSettings.defaultPaymentApp = sharedSettings.defaultPaymentApp || appSettings.defaultPaymentApp;
+            }
+            if (dataChanged || !docSnap.metadata.hasPendingWrites) {
+                 showToast("Budget data synced from cloud.");
+                 document.getElementById('currencySelect').value = appSettings.currency;
+                 document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
+                 render();
+            }
+        } else {
+            console.log("No shared budget document (real-time). Initializing local/default.");
+            monthlyData = JSON.parse(localStorage.getItem('monthlyData')) || {};
+            for (const monthKey in monthlyData) { /* ... full sanitization ... */ }
+            let localAppSettings = JSON.parse(localStorage.getItem('appSettings')) || {};
+            appSettings = { budgetMode: 'shared', currency: 'INR', defaultPaymentApp: 'GPay', notifications: [], ...localAppSettings, budgetMode: 'shared' }; // Ensure shared mode
+            if (!appSettings.notifications) appSettings.notifications = [];
+            document.getElementById('currencySelect').value = appSettings.currency;
+            document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
+            render();
+        }
+    }, error => {
+        console.error("Error in Firestore real-time listener: ", error);
+        showToast("Error syncing data. Please check connection.");
+    });
+}
     async function resetData() {
       const confirmed = await showConfirm(`Are you sure you want to reset all funds, income, and history for ${getFullDateString(currentMonth)}? This action is irreversible.`, 'Reset Data');
       if (confirmed) {
@@ -2204,148 +2731,310 @@ async function autoDeductEmiForCurrentMonth() {
     }
     // No explicit render() here; changeMonth will call it.
 }
-    async function exportToPdf() {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        const currentMonthData = getCurrentMonthData();
-        const currentCurrencySymbol = currencySymbols[appSettings.currency];
-        const monthYearDisplay = getFullDateString(currentMonth);
 
-        let yPos = 15;
-        const lineHeight = 7;
-        const margin = 15;
-        const pageHeight = doc.internal.pageSize.height;
-        const pageWidth = doc.internal.pageSize.width;
 
-        doc.setFontSize(20);
-        doc.setFont(undefined, 'bold');
-        doc.text('Account Statement', pageWidth / 2, yPos, { align: 'center' });
-        yPos += lineHeight * 1.5;
-        doc.setFontSize(12);
-        doc.setFont(undefined, 'normal');
-        doc.text(`Period: ${monthYearDisplay}`, pageWidth / 2, yPos, { align: 'center' });
-        yPos += lineHeight * 2;
 
-        doc.setFontSize(11);
-        doc.setFont(undefined, 'bold');
-        doc.text('Account Holder:', margin, yPos);
-        doc.setFont(undefined, 'normal');
-        doc.text(userProfile.name || 'N/A', margin + 40, yPos);
-        yPos += lineHeight;
 
-        doc.setFont(undefined, 'bold');
-        doc.text('Email:', margin, yPos);
-        doc.setFont(undefined, 'normal');
-        doc.text(userProfile.email || 'N/A', margin + 40, yPos);
-        yPos += lineHeight;
 
-        doc.setFont(undefined, 'bold');
-        doc.text('Statement Date:', margin, yPos);
-        doc.setFont(undefined, 'normal');
-        doc.text(getFullDateString(new Date()), margin + 40, yPos);
-        yPos += lineHeight * 2;
+// Replace your existing exportToPdf function
+async function exportToPdf() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const currentMonthData = getCurrentMonthData();
+    const currentCurrencySymbol = currencySymbols[appSettings.currency] || '₹';
+    const monthYearDisplay = getFullDateString(currentMonth);
+    const userSelectedTimezone = appSettings.userTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+    let yPos = 15;
+    const lineHeight = 7;
+    const margin = 15;
+    const pageHeight = doc.internal.pageSize.height;
+    const pageWidth = doc.internal.pageSize.width;
+
+    // PDF Header
+    doc.setFontSize(20);
+    doc.setFont(undefined, 'bold');
+    doc.text('Account Statement', pageWidth / 2, yPos, { align: 'center' });
+    yPos += lineHeight * 1.5;
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Period: ${monthYearDisplay}`, pageWidth / 2, yPos, { align: 'center' });
+    yPos += lineHeight * 2;
+
+    // Account Holder Info
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text('Account Holder:', margin, yPos);
+    doc.setFont(undefined, 'normal');
+    doc.text(userProfile.name || 'N/A', margin + 40, yPos);
+    yPos += lineHeight;
+    doc.setFont(undefined, 'bold');
+    doc.text('Email:', margin, yPos);
+    doc.setFont(undefined, 'normal');
+    const emailToDisplay = currentUser ? currentUser.email : (userProfile.email || 'N/A');
+    doc.text(emailToDisplay, margin + 40, yPos);
+    yPos += lineHeight;
+    doc.setFont(undefined, 'bold');
+    doc.text('Statement Date:', margin, yPos);
+    doc.setFont(undefined, 'normal');
+    doc.text(new Date().toLocaleDateString(undefined, { timeZone: userSelectedTimezone }), margin + 40, yPos);
+    yPos += lineHeight * 2;
+
+    // Account Summary
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text('Account Summary', margin, yPos);
+    yPos += lineHeight * 1.5;
+
+    const summaryHead = [['Description', 'Amount']]; // Header for summary
+    const summaryBody = [
+        [`Monthly Income:`, `${currentCurrencySymbol}${currentMonthData.income.toFixed(2)}`],
+    ];
+    const totalSpent = (currentMonthData.categories || []).reduce((sum, cat) => sum + (cat.spent || 0), 0);
+    summaryBody.push([`Total Expenses/Investments:`, `${currentCurrencySymbol}${totalSpent.toFixed(2)}`]);
+    const totalBalance = (currentMonthData.income || 0) - totalSpent;
+    summaryBody.push([`Remaining Balance:`, `${currentCurrencySymbol}${totalBalance.toFixed(2)}`]);
+
+    // --- MODIFIED autoTable call for summary ---
+    doc.autoTable({
+        head: summaryHead,
+        body: summaryBody,
+        startY: yPos,
+        theme: 'grid',
+        styles: { fontSize: 10, cellPadding: 2 },
+        headStyles: { fillColor: [22, 160, 133], textColor: 255, fontStyle: 'bold' },
+        margin: { left: margin, right: margin },
+        tableWidth: 'auto',
+    });
+    yPos = doc.lastAutoTable.finalY + lineHeight * 2;
+
+    // Transaction Details
+    const historyToRender = currentMonthData.history || [];
+    if (historyToRender.length > 0) {
+        if (yPos + lineHeight * 4 > pageHeight - margin) {
+            doc.addPage();
+            yPos = margin;
+        }
         doc.setFontSize(14);
         doc.setFont(undefined, 'bold');
-        doc.text('Account Summary', margin, yPos);
+        doc.text('Transaction Details', margin, yPos);
         yPos += lineHeight * 1.5;
 
-        const summaryData = [
-            ['Monthly Income:', `${currentCurrencySymbol}${currentMonthData.income.toFixed(2)}`],
-        ];
+        const transactionTableHead = [["Date", "Time", "Description", `Amount (${currentCurrencySymbol})`, "Type"]];
+        const transactionTableRows = [];
 
-        const totalSpent = currentMonthData.categories.reduce((sum, cat) => sum + cat.spent, 0);
-        summaryData.push(['Total Expenses/Investments:', `${currentCurrencySymbol}${totalSpent.toFixed(2)}`]);
+        historyToRender.forEach(transaction => {
+            const transactionDateObject = new Date(transaction.timestamp);
+            const transactionDate = transactionDateObject.toLocaleDateString(undefined, { timeZone: userSelectedTimezone });
+            const transactionTime = transactionDateObject.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: userSelectedTimezone });
+            const transactionType = transaction.type ? transaction.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A';
+            const transactionAmount = transaction.amount ? transaction.amount.toFixed(2) : '-';
 
-        const totalBalance = currentMonthData.income - totalSpent;
-        summaryData.push(['Remaining Balance:', `${currentCurrencySymbol}${totalBalance.toFixed(2)}`]);
-
-        doc.autoTable({
-            startY: yPos,
-            head: [['Description', 'Amount']],
-            body: summaryData,
-            theme: 'grid',
-            styles: { fontSize: 10, cellPadding: 2 },
-            headStyles: { fillColor: [22, 160, 133], textColor: 255, fontStyle: 'bold' },
-            margin: { left: margin, right: margin },
-            tableWidth: 'auto',
+            transactionTableRows.push([
+                transactionDate,
+                transactionTime,
+                transaction.description, // Full description
+                transactionAmount,
+                transactionType
+            ]);
         });
-        yPos = doc.lastAutoTable.finalY + lineHeight * 2;
 
-        if (currentMonthData.history.length > 0) {
-            if (yPos + lineHeight * 4 > pageHeight - margin) {
-                doc.addPage();
-                yPos = margin;
+        // --- MODIFIED autoTable call for transaction details ---
+        doc.autoTable({
+            head: transactionTableHead,
+            body: transactionTableRows,
+            startY: yPos,
+            theme: 'grid',
+            styles: { fontSize: 9, cellPadding: 2, overflow: 'linebreak' },
+            headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+            columnStyles: {
+                0: { cellWidth: 20 },    // Date
+                1: { cellWidth: 20 },    // Time
+                2: { cellWidth: 85, halign: 'left'}, // Description
+                3: { cellWidth: 25, halign: 'right' }, // Amount
+                4: { cellWidth: 25 }     // Type
+            },
+            margin: { left: margin, right: margin },
+            didDrawPage: function (data) {
+                doc.setFontSize(10);
+                doc.text('Page ' + doc.internal.getNumberOfPages(), data.settings.margin.left, pageHeight - 10);
             }
-            doc.setFontSize(14);
-            doc.setFont(undefined, 'bold');
-            doc.text('Transaction Details', margin, yPos);
-            yPos += lineHeight * 1.5;
+        });
+        yPos = doc.lastAutoTable.finalY;
+    } else {
+        // ... (No transaction history message) ...
+        if (yPos + lineHeight * 2 > pageHeight - margin) { doc.addPage(); yPos = margin; }
+        doc.setFontSize(12); doc.text('No transaction history for this period.', margin, yPos); yPos += lineHeight;
+    }
 
-            const tableColumn = ["Date", "Description", "Amount (" + currentCurrencySymbol + ")", "Type"];
-            const tableRows = [];
+    // PDF Footer
+    if (yPos + lineHeight * 3 > pageHeight - margin * 2) { doc.addPage(); yPos = margin; }
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'italic');
+    doc.text('This is a system-generated statement.', margin, pageHeight - margin - lineHeight * 2);
+    doc.text(`Smart Budget Wallet - ${new Date().getFullYear()}`, margin, pageHeight - margin - lineHeight);
 
-            currentMonthData.history.forEach(transaction => {
-                const transactionDate = new Date(transaction.timestamp).toLocaleDateString();
-                const transactionAmount = transaction.amount ? transaction.amount.toFixed(2) : '-';
-                const transactionType = transaction.type ? transaction.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A';
+    doc.save(`Statement_CurrentMonth_${monthYearDisplay.replace(/\s+/g, '_')}.pdf`);
+    showToast('Current month statement downloaded!');
+}
 
-                const rowData = [
-                    transactionDate,
-                    transaction.description,
-                    transactionAmount,
-                    transactionType
-                ];
-                tableRows.push(rowData);
-            });
+// Add this new or replace existing exportToPdfWithDateRange function
+async function exportToPdfWithDateRange() {
+    const startDateString = document.getElementById('pdfStartDate').value;
+    const endDateString = document.getElementById('pdfEndDate').value;
 
-            doc.autoTable(tableColumn, tableRows, {
-                startY: yPos,
-                theme: 'grid',
-                styles: { fontSize: 9, cellPadding: 2, overflow: 'linebreak' },
-                headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
-                columnStyles: {
-                    0: { cellWidth: 25 },
-                    1: { cellWidth: 'auto' },
-                    2: { cellWidth: 30, halign: 'right' },
-                    3: { cellWidth: 30 }
-                },
-                margin: { left: margin, right: margin },
-                didDrawPage: function (data) {
-                    doc.setFontSize(10);
-                    doc.text('Page ' + doc.internal.getNumberOfPages(), data.settings.margin.left, pageHeight - 10);
+    if (!startDateString || !endDateString) {
+        await showAlert("Please select both a start and end date for the range.", "Date Range Required");
+        return;
+    }
+
+    const startDate = new Date(startDateString);
+    startDate.setHours(0, 0, 0, 0); 
+
+    const endDate = new Date(endDateString);
+    endDate.setHours(23, 59, 59, 999);
+
+    if (endDate < startDate) {
+        await showAlert("End date cannot be before the start date.", "Invalid Date Range");
+        return;
+    }
+
+    showToast("Generating statement for selected range...");
+
+    let rangedHistory = [];
+    for (const monthKey in monthlyData) {
+        if (monthlyData.hasOwnProperty(monthKey) && monthlyData[monthKey].history) {
+            monthlyData[monthKey].history.forEach(transaction => {
+                const transactionTimestamp = new Date(transaction.timestamp);
+                if (transactionTimestamp >= startDate && transactionTimestamp <= endDate) {
+                    rangedHistory.push(transaction);
                 }
             });
-        } else {
-            if (yPos + lineHeight * 2 > pageHeight - margin) {
-                doc.addPage();
-                yPos = margin;
-            }
-            doc.setFontSize(12);
-            doc.text('No transaction history for this period.', margin, yPos);
-        }
-
-        if (doc.lastAutoTable.finalY + lineHeight * 3 > pageHeight - margin * 2) {
-             doc.addPage();
-        }
-        doc.setFontSize(9);
-        doc.setFont(undefined, 'italic');
-        doc.text('This is a system-generated statement and does not require a signature.', margin, pageHeight - margin - lineHeight * 2);
-        doc.text(`Smart Budget Wallet - ${new Date().getFullYear()}`, margin, pageHeight - margin - lineHeight);
-
-
-        doc.save(`Statement_${monthYearDisplay.replace(/\s+/g, '_')}.pdf`);
-        showToast('Statement downloaded successfully!');
-    }
-
-    function toggleLogTransactionSection() {
-        const section = document.getElementById('logTransactionSectionCard');
-        const isHidden = section.style.display === 'none';
-        section.style.display = isHidden ? 'block' : 'none';
-        if (isHidden) {
-            section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
     }
+
+    rangedHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    if (rangedHistory.length === 0) {
+        await showAlert("No transactions found for the selected date range.", "No Data");
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const currentCurrencySymbol = currencySymbols[appSettings.currency] || '₹';
+    const userSelectedTimezone = appSettings.userTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    let yPos = 15;
+    const lineHeight = 7;
+    const margin = 15;
+    const pageHeight = doc.internal.pageSize.height;
+    const pageWidth = doc.internal.pageSize.width;
+
+    doc.setFontSize(20); doc.setFont(undefined, 'bold');
+    doc.text('Account Statement', pageWidth / 2, yPos, { align: 'center' });
+    yPos += lineHeight * 1.5;
+    doc.setFontSize(12); doc.setFont(undefined, 'normal');
+    const formattedStartDate = startDate.toLocaleDateString(undefined, {timeZone: userSelectedTimezone});
+    const formattedEndDate = endDate.toLocaleDateString(undefined, {timeZone: userSelectedTimezone});
+    doc.text(`Period: ${formattedStartDate} - ${formattedEndDate}`, pageWidth / 2, yPos, { align: 'center' });
+    yPos += lineHeight * 2;
+
+    doc.setFontSize(11); doc.setFont(undefined, 'bold');
+    doc.text('Account Holder:', margin, yPos); doc.setFont(undefined, 'normal'); doc.text(userProfile.name || 'N/A', margin + 40, yPos); yPos += lineHeight;
+    doc.setFont(undefined, 'bold');
+    doc.text('Email:', margin, yPos); doc.setFont(undefined, 'normal');
+    const emailToDisplayRanged = currentUser ? currentUser.email : (userProfile.email || 'N/A');
+    doc.text(emailToDisplayRanged, margin + 40, yPos); yPos += lineHeight;
+    doc.setFont(undefined, 'bold');
+    doc.text('Statement Date:', margin, yPos); doc.setFont(undefined, 'normal'); doc.text(new Date().toLocaleDateString(undefined, {timeZone: userSelectedTimezone}), margin + 40, yPos); yPos += lineHeight * 2;
+
+    let totalExpensesInRange = 0;
+    rangedHistory.forEach(t => {
+        if (t.amount && (t.type.startsWith('expense_') || t.type === 'emi_deduction_processed' || t.type === 'fund_creation' && t.fundType === 'investment')) {
+            totalExpensesInRange += t.amount;
+        } else if (t.type === 'transfer' && t.amount > 0) { // Consider transfers out as an expense for this summary
+             const fromFundDetails = monthlyData[getMonthYearString(new Date(t.timestamp))]?.categories.find(c => c.name === t.fromFund);
+             if (fromFundDetails && fromFundDetails.type !== 'investment') { // Only count if not from investment for "expense"
+                // This simple sum might not be perfect, but it's a basic approach
+             }
+        }
+    });
+    doc.setFontSize(14); doc.setFont(undefined, 'bold'); doc.text('Summary for Selected Range', margin, yPos); yPos += lineHeight * 1.5;
+    doc.setFontSize(10); doc.setFont(undefined, 'normal');
+    // --- ENSURE BACKTICKS (`) ARE USED FOR TEMPLATE LITERAL BELOW ---
+    doc.text(`Total Spent/Invested in Range: ${currentCurrencySymbol}${totalExpensesInRange.toFixed(2)}`, margin, yPos);
+    yPos += lineHeight * 2;
+
+    if (yPos + lineHeight * 4 > pageHeight - margin) { doc.addPage(); yPos = margin; }
+    doc.setFontSize(14); doc.setFont(undefined, 'bold'); doc.text('Transaction Details', margin, yPos); yPos += lineHeight * 1.5;
+
+    const tableColumn = ["Date", "Time", "Description", `Amount (${currentCurrencySymbol})`, "Type"];
+    const tableRows = [];
+
+    rangedHistory.forEach(transaction => {
+        const transactionDateObject = new Date(transaction.timestamp);
+        const transactionDate = transactionDateObject.toLocaleDateString(undefined, {timeZone: userSelectedTimezone});
+        const transactionTime = transactionDateObject.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: userSelectedTimezone });
+        const transactionType = transaction.type ? transaction.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A';
+        const transactionAmount = transaction.amount ? transaction.amount.toFixed(2) : '-';
+
+        const rowData = [
+            transactionDate,
+            transactionTime,
+            transaction.description, // Full description
+            transactionAmount,
+            transactionType
+        ];
+        tableRows.push(rowData);
+    });
+
+    doc.autoTable(tableColumn, tableRows, {
+        startY: yPos,
+        theme: 'grid',
+        styles: { fontSize: 9, cellPadding: 2, overflow: 'linebreak' }, // overflow: 'linebreak'
+        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+        columnStyles: {
+            0: { cellWidth: 20 },    // Date
+            1: { cellWidth: 20 },    // Time
+            2: { cellWidth: 85}, // Description
+            3: { cellWidth: 25, halign: 'right' }, // Amount
+            4: { cellWidth: 25 }     // Type
+        },
+        margin: { left: margin, right: margin },
+        didDrawPage: function (data) { /* ... your page number logic ... */ }
+    });
+    yPos = doc.lastAutoTable.finalY;
+
+    if (yPos + lineHeight * 3 > pageHeight - margin * 2) { doc.addPage(); }
+    doc.setFontSize(7); doc.setFont(undefined, 'italic');
+    doc.text('This is a system-generated statement.', margin, pageHeight - margin - lineHeight * 2);
+    doc.text(`Smart Budget Wallet - ${new Date().getFullYear()}`, margin, pageHeight - margin - lineHeight);
+
+    doc.save(`Statement_Range_${startDateString}_to_${endDateString}.pdf`);
+    showToast('Statement for selected range downloaded!');
+}
+
+
+
+
+
+function toggleLogTransactionSection() {
+    const section = document.getElementById('logTransactionSectionCard');
+    if (section) { // Check if the element actually exists
+        section.classList.toggle('open'); // This will add/remove the '.open' class
+
+        // If the section is now open, you might want to scroll it into view
+        if (section.classList.contains('open')) {
+            // This scrolling is optional.
+            // setTimeout(() => { // You can add a slight delay if animation needs time to start
+            //     section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            // }, 50); 
+        }
+    } else {
+        console.error("#logTransactionSectionCard element not found!");
+    }
+}
 
     let activeSectionWrapperId = 'dashboardSectionWrapper';
     const sectionOrder = ['dashboardSectionWrapper', 'historySectionWrapper', 'analyticsSectionWrapper', 'settingsSectionWrapper'];
@@ -2482,6 +3171,25 @@ async function autoDeductEmiForCurrentMonth() {
         render();
         showToast(`Default payment app set to ${selectedApp}`);
     }
+
+
+function updateUserTimezone() {
+    const selectedTimezone = document.getElementById('timezoneSelect').value;
+    appSettings.userTimezone = selectedTimezone;
+    saveLocalAppSettings(); // Save to localStorage
+
+    // Optionally, re-render if any dates/times on the current page need immediate updating.
+    // For now, a toast is sufficient. Full effect will be seen on next date renderings.
+    render(); // This will re-render elements like history with new timezone potentially
+    showToast(`Timezone set to ${selectedTimezone}. Dates and times will use this preference.`);
+    
+    // If you have specific date/time elements that need immediate reformatting without a full render:
+    // document.getElementById('currentDateDisplay').textContent = getFullDateString(currentMonth); 
+    // (getFullDateString would need to be updated to use appSettings.userTimezone)
+}
+
+
+
 
     function renderUserProfile() {
         document.getElementById('welcomeMessage').textContent = `Welcome, ${userProfile.name}!`;
@@ -3474,7 +4182,7 @@ function addNotification(message, id, type = 'info') {
             return "I'm doing well, ready to help you manage your budget! How about you?";
         }
         if (lowerMessage.match(/\b(what is your name|who are you)\b/i)) {
-            return "I'm Smart Budget Wallet's assistant. You can call me Daiko when we're chatting with voice!";
+            return "I'm DaikuFi's assistant. You can call me Daiko when we're chatting with voice!";
         }
 
 
@@ -3715,220 +4423,212 @@ function addNotification(message, id, type = 'info') {
         setTimeout(checkAndStartInitialRecognition, 100);
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-        const ttsToggle = document.getElementById('ttsToggle');
+// Near line 2413, replace the existing DOMContentLoaded listener
+document.addEventListener('DOMContentLoaded', () => {
+    // Load global appSettings (including budgetMode) from localStorage first
+    // This ensures appSettings.budgetMode is available for immediate decisions.
+    let loadedSettings = JSON.parse(localStorage.getItem('appSettings'));
+    appSettings = { // Establish defaults
+        currency: 'INR',
+        defaultPaymentApp: 'GPay',
+        notifications: [],
+        budgetMode: 'individual', // Default mode
+        ...loadedSettings // Overwrite with anything from localStorage
+    };
+    if (!appSettings.notifications) appSettings.notifications = [];
+    if (!appSettings.budgetMode) appSettings.budgetMode = 'individual'; // Extra safety for budgetMode
+
+    console.log("DOMContentLoaded: Initial budgetMode is", appSettings.budgetMode);
+
+    // Set the budget mode radio button in Settings UI
+    const currentModeRadio = document.querySelector(`input[name="budgetModeOption"][value="${appSettings.budgetMode}"]`);
+    if (currentModeRadio) {
+        currentModeRadio.checked = true;
+    } else {
+        console.warn("Budget mode radio button not found for current mode:", appSettings.budgetMode);
+    }
+
+    // Initialize Auth UI visibility based on the loaded mode and (initially null) currentUser
+    // onAuthStateChanged will fire shortly if there's a persisted Firebase session and update currentUser
+    updateAuthUIVisibility();
+
+    // --- Your other existing DOMContentLoaded initializations ---
+    const ttsToggle = document.getElementById('ttsToggle');
+    if (ttsToggle) {
+        isSpeakingEnabled = ttsToggle.checked;
+    } else {
+        isSpeakingEnabled = false;
+        console.error("ttsToggle element not found!");
+    }
+
+    setupPasswordVisibilityToggle('userPasswordInput', 'togglePasswordVisibility'); // For the auth form
+
+    if ('speechSynthesis' in window) {
+        synth = window.speechSynthesis;
+    } else {
+        // ... (your existing speech synth warning)
+        console.warn('Web Speech API (SpeechSynthesis) not supported.');
+        showToast('Text-to-speech is not supported.');
         if (ttsToggle) {
-            isSpeakingEnabled = ttsToggle.checked;
-        } else {
-            isSpeakingEnabled = false;
-            console.error("ttsToggle element not found!");
+            const ttsOptionsContainer = ttsToggle.closest('.chat-options');
+            if (ttsOptionsContainer) ttsOptionsContainer.style.display = 'none';
         }
-        
-        // Add this line, ensuring the IDs match your HTML for the auth password field
-    setupPasswordVisibilityToggle('userPasswordInput', 'togglePasswordVisibility');
+        isSpeakingEnabled = false;
+    }
+  
 
-        if ('speechSynthesis' in window) {
-            synth = window.speechSynthesis;
-        } else {
-            console.warn('Web Speech API (SpeechSynthesis) not supported.');
-            showToast('Text-to-speech is not supported.');
-            if (ttsToggle) {
-                const ttsOptionsContainer = ttsToggle.closest('.chat-options');
-                if (ttsOptionsContainer) ttsOptionsContainer.style.display = 'none';
-            }
-            isSpeakingEnabled = false;
+  const timezoneSelectElement = document.getElementById('timezoneSelect');
+if (timezoneSelectElement) {
+    // Optional: Dynamically populate more timezone options here if needed.
+    // For now, we assume the HTML has a decent list.
+
+    // Set the selected option
+    if (appSettings.userTimezone) {
+        timezoneSelectElement.value = appSettings.userTimezone;
+    } else {
+        // If no timezone is set (e.g., very old localStorage), default to browser's and save it
+        appSettings.userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        timezoneSelectElement.value = appSettings.userTimezone;
+        saveLocalAppSettings();
+    }
+}
+    const dailyExpensesGraphContainer = document.getElementById('dailyExpensesGraphContainer');
+    const dailyExpensesGraphToggleIcon = document.getElementById('dailyExpensesGraphToggleIcon');
+    if (dailyExpensesGraphContainer && dailyExpensesGraphToggleIcon) {
+        dailyExpensesGraphToggleIcon.textContent = dailyExpensesGraphContainer.style.display === 'none' ? '▼' : '▲';
+    }
+
+    document.getElementById('currencySelect').value = appSettings.currency;
+    document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
+    
+    // renderUserProfile() is called within render(), or by onAuthStateChanged based on currentUser
+    // So, an initial call here might be redundant if render() is called soon.
+    // However, to ensure profile details are shown immediately from localStorage if available:
+    renderUserProfile(); // Reflects localStorage userProfile initially
+
+    const settingsDarkModeToggle = document.getElementById('darkModeToggleSwitchSettings');
+    const savedDarkMode = localStorage.getItem('darkMode');
+    if (savedDarkMode === 'true') {
+        document.body.classList.add('dark-mode');
+        if(settingsDarkModeToggle) settingsDarkModeToggle.checked = true;
+    } else {
+        if(settingsDarkModeToggle) settingsDarkModeToggle.checked = false;
+    }
+    if(settingsDarkModeToggle) settingsDarkModeToggle.addEventListener('change', toggleDarkMode);
+
+    const avatarOptionsContainer = document.getElementById('avatarOptions');
+    if(avatarOptionsContainer) avatarOptionsContainer.addEventListener('click', (event) => {
+        if (event.target.classList.contains('avatar-option')) {
+            selectAvatar(event.target.dataset.emoji);
         }
+    });
 
-        const dailyExpensesGraphContainer = document.getElementById('dailyExpensesGraphContainer');
-                   const dailyExpensesGraphToggleIcon = document.getElementById('dailyExpensesGraphToggleIcon');
-                   if (dailyExpensesGraphContainer && dailyExpensesGraphToggleIcon) {
-                   dailyExpensesGraphToggleIcon.textContent = dailyExpensesGraphContainer.style.display === 'none' ? '▼' : '▲';
-                   }
-        
-        document.getElementById('currencySelect').value = appSettings.currency;
-        document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
-        renderUserProfile();
+    const mainFaqContent = document.getElementById('faqContent');
+    const settingsFaqContent = document.getElementById('faqContentSettings');
+    if (mainFaqContent && settingsFaqContent) {
+        settingsFaqContent.innerHTML = mainFaqContent.innerHTML;
+    }
 
-        const settingsDarkModeToggle = document.getElementById('darkModeToggleSwitchSettings');
-        const savedDarkMode = localStorage.getItem('darkMode');
-        if (savedDarkMode === 'true') {
-            document.body.classList.add('dark-mode');
-            if(settingsDarkModeToggle) settingsDarkModeToggle.checked = true;
-        } else {
-            if(settingsDarkModeToggle) settingsDarkModeToggle.checked = false;
-        }
-        if(settingsDarkModeToggle) settingsDarkModeToggle.addEventListener('change', toggleDarkMode);
+    initializeDashboardGauges();
+    const toggleLogTransactionBtn = document.getElementById('toggleLogTransactionBtn');
+    if(toggleLogTransactionBtn) toggleLogTransactionBtn.addEventListener('click', toggleLogTransactionSection);
 
-        const avatarOptionsContainer = document.getElementById('avatarOptions');
-        if(avatarOptionsContainer) avatarOptionsContainer.addEventListener('click', (event) => {
-            if (event.target.classList.contains('avatar-option')) {
-                selectAvatar(event.target.dataset.emoji);
-            }
-        });
-
-        const mainFaqContent = document.getElementById('faqContent');
-        const settingsFaqContent = document.getElementById('faqContentSettings');
-        if (mainFaqContent && settingsFaqContent) {
-            settingsFaqContent.innerHTML = mainFaqContent.innerHTML;
-        }
-
-        initializeDashboardGauges();
-        const toggleLogTransactionBtn = document.getElementById('toggleLogTransactionBtn');
-        if(toggleLogTransactionBtn) toggleLogTransactionBtn.addEventListener('click', toggleLogTransactionSection);
-
-        const mainWrapper = document.getElementById('mainContentWrapper');
+    // ... (Your existing swipe event listeners for mainWrapper) ...
+    const mainWrapper = document.getElementById('mainContentWrapper');
     if (mainWrapper) {
+        // ... (keep your full swipe setup here) ...
         let touchStartX = 0;
         let touchEndX = 0;
-        const swipeThreshold = 50; // Minimum distance for a swipe
+        const swipeThreshold = 50;
 
         mainWrapper.addEventListener('touchstart', e => {
-            // Only consider single touch for swipe
-            if (e.touches.length === 1) {
-                touchStartX = e.changedTouches[0].screenX;
-                console.log(`Swipe TouchStart on mainWrapper: X=${touchStartX}, Current Section: ${activeSectionWrapperId}`);
-            }
+            if (e.touches.length === 1) touchStartX = e.changedTouches[0].screenX;
         }, { passive: true });
 
         mainWrapper.addEventListener('touchend', e => {
-            // Only consider single touch for swipe
             if (e.changedTouches.length === 1) {
                 touchEndX = e.changedTouches[0].screenX;
-                console.log(`Swipe TouchEnd on mainWrapper: X=${touchEndX}, Current Section: ${activeSectionWrapperId}`);
-                handleSwipe(); // Call your existing handleSwipe function
+                handleSwipe();
             }
         }, { passive: true });
 
         function handleSwipe() {
             const deltaX = touchEndX - touchStartX;
             const currentSectionIndex = sectionOrder.indexOf(activeSectionWrapperId);
-
-            console.log(
-                `handleSwipe Executed: StartX=${touchStartX}, EndX=${touchEndX}, DeltaX=${deltaX}, ` +
-                `ActiveSection=${activeSectionWrapperId}, CurrentIndex=${currentSectionIndex}, Threshold=${swipeThreshold}`
-            );
-
-            if (currentSectionIndex === -1) {
-                console.error("Swipe Error: Could not determine current section index. Active ID:", activeSectionWrapperId);
-                // Reset points to avoid issues on next attempt
-                touchStartX = 0;
-                touchEndX = 0;
-                return;
+            if (currentSectionIndex === -1 || touchStartX === 0 || touchEndX === 0) {
+                touchStartX = 0; touchEndX = 0; return;
             }
-
-            // Check if a significant swipe occurred (both points must be set, and delta must exceed threshold)
-            if (touchStartX !== 0 && touchEndX !== 0) { // Ensure both start and end were captured
-                if (deltaX < -swipeThreshold) { // Swiped Left (Next Section)
-                    if (currentSectionIndex < sectionOrder.length - 1) {
-                        console.log("Swipe Action: Swiped Left. Navigating to NEXT section.");
-                        scrollToSection(sectionOrder[currentSectionIndex + 1].replace('SectionWrapper', '-section'), true);
-                    } else {
-                        console.log("Swipe Action: Swiped Left. Already at the last section.");
-                    }
-                } else if (deltaX > swipeThreshold) { // Swiped Right (Previous Section)
-                    if (currentSectionIndex > 0) {
-                        console.log("Swipe Action: Swiped Right. Navigating to PREVIOUS section.");
-                        scrollToSection(sectionOrder[currentSectionIndex - 1].replace('SectionWrapper', '-section'), true);
-                    } else {
-                        console.log("Swipe Action: Swiped Right. Already at the first section.");
-                    }
-                } else {
-                    console.log("Swipe Action: Swipe distance did not meet threshold. DeltaX:", deltaX);
-                }
-            } else {
-                console.log("Swipe Action: Incomplete swipe data (touchStartX or touchEndX not properly set).");
+            if (deltaX < -swipeThreshold && currentSectionIndex < sectionOrder.length - 1) {
+                scrollToSection(sectionOrder[currentSectionIndex + 1].replace('SectionWrapper', '-section'), true);
+            } else if (deltaX > swipeThreshold && currentSectionIndex > 0) {
+                scrollToSection(sectionOrder[currentSectionIndex - 1].replace('SectionWrapper', '-section'), true);
             }
-
-            // Reset points for the next distinct swipe gesture
-            touchStartX = 0;
-            touchEndX = 0;
+            touchStartX = 0; touchEndX = 0;
         }
     }
 
-        toggleAutoDeductOptions();
-        sectionOrder.forEach(wrapperId => {
-            const sectionWrapperElement = document.getElementById(wrapperId);
-            if (!sectionWrapperElement) return;
-            const isDashboard = (wrapperId === 'dashboardSectionWrapper');
-            if (isDashboard) {
-                sectionWrapperElement.classList.add('active');
-                const dashboardElementsToToggle = [
+
+    toggleAutoDeductOptions(); // For the create fund modal
+    
+    // Initial section display setup (can be simplified if scrollToSection handles it perfectly)
+    sectionOrder.forEach(wrapperId => {
+        const sectionWrapperElement = document.getElementById(wrapperId);
+        if (!sectionWrapperElement) return;
+        if (wrapperId === activeSectionWrapperId) { // activeSectionWrapperId is 'dashboardSectionWrapper' by default
+            sectionWrapperElement.classList.add('active');
+            // Ensure dashboard elements are correctly displayed
+            if (wrapperId === 'dashboardSectionWrapper') {
+                 const dashboardElementsToToggle = [
                     '.total-balance', '#dashboardGaugesContainer', '#toggleLogTransactionBtn',
                     '#monthlyIncomeCard', '#expenseFundsCard', '#investmentFundsCard',
                     '#transferFundsCard'
                 ];
                 dashboardElementsToToggle.forEach(selector => {
                     const el = sectionWrapperElement.querySelector(selector) || document.querySelector(selector);
-                    if (el) {
-                        el.style.display = (selector === '#dashboardGaugesContainer') ? 'flex' : 'block';
-                    }
+                    if (el) el.style.display = (selector === '#dashboardGaugesContainer' ? 'flex' : 'block');
                 });
                 const currentDateDisplayCard = document.getElementById('currentDateDisplay')?.closest('.card');
                 if (currentDateDisplayCard) currentDateDisplayCard.style.display = 'block';
-                const logTransactionCard = document.getElementById('logTransactionSectionCard');
-                if (logTransactionCard) logTransactionCard.style.display = 'none';
-
-            } else {
-                sectionWrapperElement.classList.remove('active');
-                const mainContentId = wrapperId.replace('SectionWrapper', '-section');
-                const mainContentDiv = document.getElementById(mainContentId);
-                if (mainContentDiv) {
-                    mainContentDiv.style.display = 'none';
-                }
             }
-        });
-
-        const paymentActionTextSpan = document.getElementById('paymentActionText');
-        if (document.querySelector('input[name="paymentMethod"]')) {
-            document.querySelectorAll('input[name="paymentMethod"]').forEach(radio => {
-                radio.addEventListener('change', function() {
-                    if (paymentActionTextSpan) {
-                        const logExpenseButton = document.querySelector('#logTransactionSectionCard button.secondary');
-                        if (this.value === 'scanAndPay') {
-                            paymentActionTextSpan.textContent = ' & Scan QR';
-                            if(logExpenseButton) logExpenseButton.childNodes[0].nodeValue = "Log & Scan ";
-                        } else if (this.value === 'cash') { // Added explicit handling for cash
-                            paymentActionTextSpan.textContent = '';
-                            if(logExpenseButton) logExpenseButton.childNodes[0].nodeValue = "Log Expense ";
-                        }
-                        // ADD THE NEW 'else if' FOR 'payViaUpiApp' HERE:
-                        else if (this.value === 'payViaUpiApp') {
-                            const defaultApp = appSettings.defaultPaymentApp || 'Default App'; // Fallback text
-                            paymentActionTextSpan.textContent = ` & Open ${defaultApp}`;
-                            if(logExpenseButton) logExpenseButton.childNodes[0].nodeValue = "Log Expense "; // Keep main button text
-                        }
-                        // Ensure default case for cash if none of the above match or if you want to reset
-                        // else { 
-                        //     paymentActionTextSpan.textContent = '';
-                        //     if(logExpenseButton) logExpenseButton.childNodes[0].nodeValue = "Log Expense ";
-                        // }
-                    }
-                });
-            });
-            // Trigger change event for the initially checked radio button to set initial button text
-            const initiallyCheckedRadio = document.querySelector('input[name="paymentMethod"]:checked');
-            if (initiallyCheckedRadio) {
-                initiallyCheckedRadio.dispatchEvent(new Event('change'));
-            }
+        } else {
+            sectionWrapperElement.classList.remove('active');
+            const mainContentId = wrapperId.replace('SectionWrapper', '-section');
+            const mainContentDiv = document.getElementById(mainContentId);
+            if(mainContentDiv) mainContentDiv.style.display = 'none';
         }
-
-        render();
-
-        const welcomeMessageEl = document.getElementById('welcomeMessage');
-        if(welcomeMessageEl && userProfile) welcomeMessageEl.textContent = `Welcome, ${userProfile.name}!`;
-
-
-        const todayForImport = new Date();
-        const currentMonthDataForImport = getCurrentMonthData();
-        if (currentMonthDataForImport && todayForImport.getDate() === 1 && !currentMonthDataForImport.fundsImported) {
-            autoImportFundsForNewMonth().then(() => {
-            });
-        }
-
-        if (localStorage.getItem('tutorialShown') !== 'true') {
-            setTimeout(startTutorial, 700);
-        }
-
-        setupChatbotEventListeners();
-
     });
+
+
+    // Payment method radio button text update logic
+    const paymentActionTextSpan = document.getElementById('paymentActionText');
+    if (document.querySelector('input[name="paymentMethod"]')) {
+        // ... (Keep your existing payment method radio listener logic) ...
+         document.querySelectorAll('input[name="paymentMethod"]').forEach(radio => {
+            radio.addEventListener('change', function() { /* ... your logic ... */ });
+        });
+        const initiallyCheckedRadio = document.querySelector('input[name="paymentMethod"]:checked');
+        if (initiallyCheckedRadio) initiallyCheckedRadio.dispatchEvent(new Event('change'));
+    }
+
+    // Initial render based on localStorage (onAuthStateChanged will override if in shared mode and logged in)
+    render();
+
+    const welcomeMessageElDOM = document.getElementById('welcomeMessage'); // Re-fetch after render potentially changes DOM
+    if (welcomeMessageElDOM && userProfile) { // Use the global userProfile that was loaded from localStorage
+         let initialDisplayName = (userProfile.name && userProfile.name !== 'Guest' && userProfile.name.trim() !== '') ? userProfile.name : 'Guest';
+         welcomeMessageElDOM.textContent = `Welcome, ${initialDisplayName}!`;
+    }
+
+
+    const todayForImport = new Date();
+    const currentMonthDataForImport = getCurrentMonthData(); // getCurrentMonthData uses global monthlyData
+    if (currentMonthDataForImport && todayForImport.getDate() === 1 && !currentMonthDataForImport.fundsImported) {
+        autoImportFundsForNewMonth().then(() => {});
+    }
+
+    if (localStorage.getItem('tutorialShown') !== 'true') {
+        setTimeout(startTutorial, 700);
+    }
+
+    setupChatbotEventListeners();
+});
