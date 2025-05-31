@@ -305,7 +305,7 @@ button {
   padding: 12px;
   margin-top: 10px; 
   border: none;
-  border-radius: 12px; 
+  border-radius: 20px; 
   font-size: 15px;
   font-family: 'Poppins', sans-serif;
   font-weight: 500; 
@@ -343,7 +343,7 @@ body.dark-mode button.accent-bg-button { /* Soft Lime Yellow bg */
 
 .modal-buttons button {
     font-size: 14px;
-    border-radius: 10px;
+    border-radius: 15px;
     font-weight: 500;
     width: auto; 
     min-width: 100px; 
@@ -377,6 +377,42 @@ body.dark-mode button.accent-bg-button { /* Soft Lime Yellow bg */
     box-sizing: border-box;
 }
 
+#logTransactionSectionCard {
+    max-height: 0;
+    overflow: hidden;
+    visibility: hidden; 
+    margin-top: 0 !important; 
+    margin-bottom: 0 !important; 
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    border-width: 0 !important;
+    opacity: 0;
+    transition: max-height 0.35s ease-out, 
+                opacity 0.2s ease-out 0.1s,
+                margin-top 0.35s ease-out, 
+                padding-top 0.35s ease-out, 
+                padding-bottom 0.35s ease-out,
+                border-width 0.35s ease-out,
+                visibility 0s linear 0.35s; 
+}
+
+#logTransactionSectionCard.open {
+    max-height: 500px; /* Adjust if content is taller */
+    visibility: visible;
+    opacity: 1;
+    margin-top: 15px !important;    
+    margin-bottom: 15px !important; 
+    padding-top: 18px !important;   
+    padding-bottom: 18px !important;
+    border-width: 1px !important;   
+    transition: max-height 0.35s ease-in, 
+                opacity 0.3s ease-in,
+                margin-top 0.35s ease-in, 
+                padding-top 0.35s ease-in, 
+                padding-bottom 0.35s ease-in,
+                border-width 0.35s ease-in,
+                visibility 0s linear 0s;
+}
 
 /* --- Full Height Layout for Swipe (from previous fix) --- */
 #mainContentWrapper {
@@ -564,9 +600,9 @@ body.dark-mode .dark-mode-toggle input:checked + .slider { background-color: var
 .modal-content { background-color: var(--card-bg); color: var(--text-color); padding: 25px; border-radius: 16px; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3); width: 90%; max-width: 380px; text-align: center; transform: translateY(-20px); transition: transform 0.3s ease; }
 .modal-overlay.active .modal-content { transform: translateY(0); }
 .modal-buttons { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
-.modal-buttons button { width: auto; min-width: 90px; padding: 10px 15px; font-size: 14px; border-radius: 10px; margin-top: 0; }
+.modal-buttons button { width: auto; min-width: 90px; padding: 10px 15px; font-size: 14px; border-radius: 16px; margin-top: 0; }
 
-.fab, .chatbot-fab { position: fixed; width: 50px; height: 50px; border-radius: 16px; font-size: 24px; box-shadow: var(--shadow-depth-button); transition: background-color 0.3s, transform 0.2s ease-in-out, box-shadow 0.2s ease; display: flex; justify-content: center; align-items: center; border: none; z-index: 900; }
+.fab, .chatbot-fab { position: fixed; width: 50px; height: 50px; border-radius: 25px; font-size: 24px; box-shadow: var(--shadow-depth-button); transition: background-color 0.3s, transform 0.2s ease-in-out, box-shadow 0.2s ease; display: flex; justify-content: center; align-items: center; border: none; z-index: 900; }
 .fab { bottom: 80px; right: 15px; background-image: linear-gradient(to right, var(--gradient-primary-start) 0%, var(--gradient-primary-end) 51%, var(--gradient-primary-start) 100%); color: white;}
 .chatbot-fab { bottom: 80px; left: 15px; background-image: linear-gradient(to right, var(--gradient-secondary-start) 0%, var(--gradient-secondary-end) 51%, var(--gradient-secondary-start) 100%); color: white; cursor: pointer; }
 /* Ensure chatbot fab text color is correct for light mode if secondary gradient is light */
