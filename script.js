@@ -3081,9 +3081,10 @@ function toggleLogTransactionSection() {
                     if (currentDateDisplayCard) currentDateDisplayCard.style.display = isCurrentNewSection ? 'block' : 'none';
                     const logTransactionCard = document.getElementById('logTransactionSectionCard');
                     if (logTransactionCard && !isCurrentNewSection) {
-                        logTransactionCard.style.display = 'none';
+                        logTransactionCard.style.display = '';
                     }
                 } else {
+		    
                     const mainContentId = wrapperId.replace('SectionWrapper', '-section');
                     const mainContentDiv = document.getElementById(mainContentId);
                     if (mainContentDiv) {
