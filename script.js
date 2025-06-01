@@ -177,6 +177,151 @@ auth.onAuthStateChanged(async user => {
         return date.toLocaleString('en-US', options);
     }
 
+function toggleHowWasMyDayGraph() {
+    const graphContainer = document.getElementById('howWasMyDayGraphContainer');
+    const graphToggleIcon = document.getElementById('howWasMyDayGraphToggleIcon');
+    const isHidden = graphContainer.style.display === 'none';
+    graphContainer.style.display = isHidden ? 'block' : 'none';
+    graphToggleIcon.textContent = isHidden ? '▲' : '▼';
+    if (isHidden) {
+        renderHowWasMyDayChart(); // Render the chart when it's made visible
+    }
+}
+
+function getHowWasMyDayExpenseDataForChart() {
+    const today = new Date();
+    const targetMonthKey = getMonthYearString(today); // Assumes getMonthYearString utility exists
+    const targetDay = today.getDate();
+
+    const hourlyExpenses = Array(24).fill(0); // 0 to 23 hours
+
+    if (monthlyData[targetMonthKey] && monthlyData[targetMonthKey].history) {
+        const historyForTodayMonth = monthlyData[targetMonthKey].history;
+        const expenseTypes = ['expense_cash', 'expense_scan_pay', 'expense_pay_via_app', 'emi_deduction_processed'];
+
+        historyForTodayMonth.forEach(transaction => {
+            const transactionDate = new Date(transaction.timestamp);
+            if (transactionDate.getFullYear() === today.getFullYear() &&
+                transactionDate.getMonth() === today.getMonth() &&
+                transactionDate.getDate() === targetDay &&
+                expenseTypes.includes(transaction.type) &&
+                transaction.amount > 0) {
+                const hourOfDay = transactionDate.getHours();
+                hourlyExpenses[hourOfDay] += transaction.amount;
+            }
+        });
+    }
+
+    const labels = Array.from({ length: 24 }, (_, i) => {
+        const d = new Date(0, 0, 0, i);
+        // Format time like "12AM", "1AM", ..., "11PM"
+        let hours = d.getHours();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12; // the hour '0' should be '12'
+        return hours + ampm;
+    });
+    const data = hourlyExpenses;
+
+    return {
+        labels: labels,
+        data: data
+    };
+}
+
+function renderHowWasMyDayChart() {
+    const chartData = getHowWasMyDayExpenseDataForChart();
+    const ctx = document.getElementById('howWasMyDayBarChart').getContext('2d');
+    const currentCurrencySymbol = currencySymbols[appSettings.currency];
+
+    // Use same color variables as renderDailyBarChart
+    const barChartTextColor = '#FFBF00'; // Amber/Gold color for text elements
+    const primaryColorRGB = getComputedStyle(document.documentElement).getPropertyValue('--primary-color-rgb').trim();
+    const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color').trim();
+
+    if (howWasMyDayBarChartInstance) {
+        howWasMyDayBarChartInstance.destroy();
+    }
+
+    howWasMyDayBarChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: chartData.labels,
+            datasets: [{
+                label: `Today's Expenses (${currentCurrencySymbol})`,
+                data: chartData.data,
+                backgroundColor: `rgba(${primaryColorRGB}, 0.7)`,
+                borderColor: `rgb(${primaryColorRGB})`,
+                borderWidth: 1,
+                barThickness: 'flex',
+                maxBarThickness: 15
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    labels: {
+                        color: barChartTextColor
+                    }
+                },
+                tooltip: {
+                    titleColor: barChartTextColor,
+                    bodyColor: barChartTextColor,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                label += currentCurrencySymbol + context.parsed.y.toFixed(2);
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: `Amount (${currentCurrencySymbol})`,
+                        color: barChartTextColor
+                    },
+                    ticks: {
+                        color: barChartTextColor,
+                        callback: function(value) {
+                            return currentCurrencySymbol + value;
+                        }
+                    },
+                    grid: {
+                        color: gridColor,
+                        borderColor: gridColor
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Time of Day',
+                        color: barChartTextColor
+                    },
+                    ticks: {
+                        color: barChartTextColor
+                    },
+                    grid: {
+                        display: false, // No vertical grid lines for a cleaner look
+                        borderColor: gridColor
+                    }
+                }
+            }
+        }
+    });
+}
+
   function toggleDailyExpensesGraph() {
     const graphContainer = document.getElementById('dailyExpensesGraphContainer');
     const graphToggleIcon = document.getElementById('dailyExpensesGraphToggleIcon');
@@ -422,6 +567,7 @@ function renderDailyBarChart() {
     // Initialize Chart.js pie chart instance
     let expensePieChart;
     let dailyExpensesBarChart;
+    let howWasMyDayBarChartInstance;
     // Dashboard Gauge Chart Instances
     let investmentGaugeChart, expenseGaugeChart, loanGaugeChart;
 
@@ -3116,6 +3262,14 @@ function toggleLogTransactionSection() {
                                 } else if (historyContent) {
                                     historyContent.style.display = 'none';
                                 }
+                                const howWasMyDayContent = document.getElementById('howWasMyDayGraphContainer');
+    const howWasMyDayToggleIcon = document.getElementById('howWasMyDayGraphToggleIcon');
+    if (howWasMyDayContent && howWasMyDayToggleIcon && howWasMyDayToggleIcon.textContent === '▲'){
+        howWasMyDayContent.style.display = 'block';
+        renderHowWasMyDayChart(); // Render if visible
+    } else if (howWasMyDayContent){
+        howWasMyDayContent.style.display = 'none';
+    }
                                 const dailyGraphContent = document.getElementById('dailyExpensesGraphContainer');
                                 const dailyGraphToggleIcon = document.getElementById('dailyExpensesGraphToggleIcon');
                                 if (dailyGraphContent && dailyGraphToggleIcon && dailyGraphToggleIcon.textContent === '▲'){
@@ -3573,7 +3727,7 @@ function addNotification(message, id, type = 'info') {
 
                 if (remainingPercentage <= 10) {
                     addNotification(
-                        `"${fund.name}" balance is very low (≤10% remaining).`,
+                        `"${fund.name}" balance is very low.`,
                         fundLow10Id,
                         'lowBalance10'
                     );
@@ -3581,7 +3735,7 @@ function addNotification(message, id, type = 'info') {
                     const low10Notification = appSettings.notifications.find(n => n.id === fundLow10Id && !n.read);
                     if (!low10Notification) {
                          addNotification(
-                            `"${fund.name}" balance is low (≤50% remaining).`,
+                            `"${fund.name}" balance is low.`,
                             fundLow50Id,
                             'lowBalance50'
                         );
@@ -4528,6 +4682,15 @@ if (timezoneSelectElement) {
     if (dailyExpensesGraphContainer && dailyExpensesGraphToggleIcon) {
         dailyExpensesGraphToggleIcon.textContent = dailyExpensesGraphContainer.style.display === 'none' ? '▼' : '▲';
     }
+    
+     const howWasMyDayGraphContainer = document.getElementById('howWasMyDayGraphContainer');
+const howWasMyDayGraphToggleIcon = document.getElementById('howWasMyDayGraphToggleIcon');
+if (howWasMyDayGraphContainer && howWasMyDayGraphToggleIcon) {
+    howWasMyDayGraphToggleIcon.textContent = howWasMyDayGraphContainer.style.display === 'none' ? '▼' : '▲';
+}
+
+
+
 
     document.getElementById('currencySelect').value = appSettings.currency;
     document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
