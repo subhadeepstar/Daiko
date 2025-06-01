@@ -107,10 +107,22 @@
             <button onclick="transferFunds()" class="primary" aria-label="Transfer Funds">Transfer Funds</button>
         </div>
     </div>
-    <div id="historySectionWrapper" class="app-section" style="display:none;">
+    
 
-    <div class="card no-hover-effect" id="daily-expenses-graph-section">
-        <h4 style="cursor:pointer" onclick="toggleDailyExpensesGraph()" aria-label="Toggle Daily Expenses Graph">Daily Expenses Graph <span id="dailyExpensesGraphToggleIcon">▼</span></h4>
+
+
+<div id="historySectionWrapper" class="app-section" style="display:none;">
+
+    
+<div class="card no-hover-effect" id="how-was-my-day-graph-section">
+        <h4 style="cursor:pointer" onclick="toggleHowWasMyDayGraph()" aria-label="Toggle How was my day Graph">How was my day? <span id="howWasMyDayGraphToggleIcon">▼</span></h4>
+        <div id="howWasMyDayGraphContainer" style="display:none; padding-top: 10px;">
+            <canvas id="howWasMyDayBarChart" height="200"></canvas>
+        </div>
+    </div>
+
+<div class="card no-hover-effect" id="daily-expenses-graph-section">
+        <h4 style="cursor:pointer" onclick="toggleDailyExpensesGraph()" aria-label="Toggle Daily Expenses Graph">Daywise Expenses <span id="dailyExpensesGraphToggleIcon">▼</span></h4>
         <div id="dailyExpensesGraphContainer" style="display:none; padding-top: 10px;">
             <canvas id="dailyBarChart" height="200"></canvas>
         </div>
@@ -172,7 +184,17 @@
                     <span>🌙 Dark Mode</span>
                 </div>
             </div>
-
+            <div class="settings-group" id="lightModePaletteGroup">
+                <label for="lightModePaletteSelect">Light Mode Palette:</label>
+                <select id="lightModePaletteSelect">
+                    <option value="default">Default (Lavender Glow)</option>
+                    <option value="ocean">Ocean Breeze</option>
+                    <option value="forest">Forest Calm</option>
+                </select>
+                <p style="font-size:0.8em; opacity:0.7; margin-top:5px;">
+                    Choose a visual style for the light theme. This is active when Dark Mode is off.
+                </p>
+            </div>
             <div class="settings-group">
                 <label for="timezoneSelect">Timezone:</label>
                 <select id="timezoneSelect" onchange="updateUserTimezone()">
