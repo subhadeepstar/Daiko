@@ -13,6 +13,7 @@
   --border-color: #E5E7EB; /* Mist Gray - borders/dividers */
   --card-bg: #F0F2F5; /* Soft Gray - surfaces/cards */
   --body-bg: #F9FAFB; /* Pearl White - background */
+  --dot-color: var(--border-color); /* Color for the dots in light mode */
 
   --button-hover-primary: #A07FE0; /* Darker Lavender Glow */
   --button-hover-secondary: #48D1B9; /* Darker Sky Aqua */
@@ -68,6 +69,7 @@ body.dark-mode {
   --danger-color: #FF6B6B; /* Existing Bright Red for danger */
 
   --border-color: #2E3D3A; /* Muted Slate - borders/dividers */
+  --dot-color: var(--border-color); /* Color for the dots in dark mode */
 
   --warning-orange: #FECC80; /* Sunset Peach - buttons/badges/alerts */
   --warning-red: var(--danger-color); /* #FF6B6B */
@@ -110,6 +112,7 @@ body.dark-mode {
 html {
     height: 100%;
     box-sizing: border-box;
+     -webkit-tap-highlight-color: transparent; /* Removes the blue tap highlight on Android/iOS */
 }
 *, *:before, *:after {
     box-sizing: inherit;
@@ -120,7 +123,9 @@ body {
   margin: 0 auto;
   padding: 20px;
   padding-bottom: 80px;
-  background-color: var(--body-bg);
+  background-color: var(--body-bg); /* This remains as the base color */
+  background-image: radial-gradient(var(--dot-color) 1px, transparent 1px); /* Dotted pattern */
+  background-size: 15px 15px; /* Adjust dot spacing here (width height) */
   color: var(--text-color);
   line-height: 1.55;
   transition: background-color 0.3s ease, color 0.3s ease;
@@ -130,6 +135,7 @@ body {
   flex-direction: column;
   min-height: 100vh;
   overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* General Headings */
@@ -203,6 +209,7 @@ h3#dashboard-section {
     justify-content: space-between;
     cursor: pointer;
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.3s ease;
+    -webkit-tap-highlight-color: transparent;
 }
 .fund-tablet-header strong {
   font-size: 0.9em;
@@ -232,32 +239,32 @@ h3#dashboard-section {
   background-color: var(--card-bg);
   border-radius: 20px;
   box-shadow: var(--shadow-depth-1);
-  height: 120px; 
+  height: 120px;
   text-align: center;
-  overflow: hidden; 
-  position: relative; 
+  overflow: hidden;
+  position: relative;
 }
 .gauge-widget .gauge-label {
   font-size: 11px;
   font-weight: 400;
   color: var(--text-secondary-color);
-  margin-top: 0; 
+  margin-top: 0;
   line-height: 1.8;
-  flex-shrink: 0; 
+  flex-shrink: 0;
 }
 .gauge-widget .gauge-percentage {
-  font-size: 1.1em; 
+  font-size: 1.1em;
   font-weight: 600;
   margin-top: 1px;
-  flex-shrink: 0; 
+  flex-shrink: 0;
 }
 .gauge-widget canvas {
-  max-width: 90%; 
-  max-height: 40px; 
-  height: auto !important; 
-  display: block; 
-  margin-top: 5px; 
-  margin-bottom: 5px; 
+  max-width: 90%;
+  max-height: 40px;
+  height: auto !important;
+  display: block;
+  margin-top: 5px;
+  margin-bottom: 5px;
 }
 
 /* Input Fields, Selects - Wider, centered, softer rounding */
@@ -267,22 +274,22 @@ input[type="date"],
 input[type="email"],
 input[type="password"],
 select {
-  display: block; 
-  width: 90%;    
-  max-width: 450px; 
-  margin-left: auto;  
-  margin-right: auto; 
+  display: block;
+  width: 90%;
+  max-width: 450px;
+  margin-left: auto;
+  margin-right: auto;
   padding: 10px;
   margin-bottom: 12px;
   border: 1px solid var(--border-color);
-  border-radius: 10px; 
+  border-radius: 10px;
   box-sizing: border-box;
   font-size: 14px;
   font-family: 'Poppins', sans-serif;
-  background-color: var(--card-bg); 
+  background-color: var(--card-bg);
   color: var(--text-color);
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.2s ease;
-  box-shadow: var(--shadow-depth-2-inset); 
+  box-shadow: var(--shadow-depth-2-inset);
 }
 body.dark-mode input[type="text"],
 body.dark-mode input[type="number"],
@@ -290,7 +297,7 @@ body.dark-mode input[type="date"],
 body.dark-mode input[type="email"],
 body.dark-mode select {
     background-color: var(--subtle-bg); /* Could be var(--card-bg) if --subtle-bg (#2a2d2a) on --card-bg (#1f1f1f) is desired */
-    box-shadow: none; 
+    box-shadow: none;
     border: 1px solid var(--border-color);
 }
 input[type="text"]:focus, input[type="number"]:focus, input[type="date"]:focus, input[type="email"]:focus, select:focus {
@@ -301,21 +308,22 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="date"]:focus, 
 
 /* Buttons - Softer rounding, Poppins font, centered text */
 button {
-  width: 100%; 
+  width: 100%;
   padding: 12px;
-  margin-top: 10px; 
+  margin-top: 10px;
   border: none;
-  border-radius: 20px; 
+  border-radius: 20px;
   font-size: 15px;
   font-family: 'Poppins', sans-serif;
-  font-weight: 500; 
+  font-weight: 500;
   cursor: pointer;
   transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out, color 0.3s ease, box-shadow 0.2s ease;
   color: var(--light-text-color); /* Default for buttons with dark/gradient backgrounds */
   background-size: 200% auto;
   box-shadow: var(--shadow-depth-button);
-  text-transform: none; 
-  text-align: center; 
+  text-transform: none;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Light Mode Button Text Colors (if backgrounds are light) */
@@ -339,19 +347,22 @@ body.dark-mode button.accent-bg-button { /* Soft Lime Yellow bg */
     background-image: linear-gradient(to right, var(--gradient-accent-start) 0%, var(--gradient-accent-end) 51%, var(--gradient-accent-start) 100%);
     color: #1C3327; /* Deep Forest Green text on Soft Lime Yellow button */
 }
-
+button,
+.fund-tablet {
+    -webkit-tap-highlight-color: transparent;
+}
 
 .modal-buttons button {
     font-size: 14px;
     border-radius: 15px;
     font-weight: 500;
-    width: auto; 
-    min-width: 100px; 
+    width: auto;
+    min-width: 100px;
 }
 
 /* --- Log Transaction Card Layout (Stacking elements) --- */
 #logTransactionSectionCard > h4 {
-    text-align: center; 
+    text-align: center;
     margin-bottom: 18px;
 }
 #logTransactionSectionCard > select,
@@ -359,20 +370,20 @@ body.dark-mode button.accent-bg-button { /* Soft Lime Yellow bg */
 #logTransactionSectionCard > .payment-method-options,
 #logTransactionSectionCard > button {
     display: block;
-    width: 90%; 
-    max-width: 350px; 
+    width: 90%;
+    max-width: 350px;
     margin-left: auto;
     margin-right: auto;
-    margin-top: 10px; 
-    margin-bottom: 12px; 
+    margin-top: 10px;
+    margin-bottom: 12px;
 }
 #logTransactionSectionCard > button {
-    width: 85%; 
-    padding: 12px; 
+    width: 85%;
+    padding: 12px;
 }
 #logTransactionSectionCard > .payment-method-options {
-    width: 100%; 
-    padding-left: 5%; 
+    width: 100%;
+    padding-left: 5%;
     padding-right: 5%;
     box-sizing: border-box;
 }
@@ -380,35 +391,35 @@ body.dark-mode button.accent-bg-button { /* Soft Lime Yellow bg */
 #logTransactionSectionCard {
     max-height: 0;
     overflow: hidden;
-    visibility: hidden; 
-    margin-top: 0 !important; 
-    margin-bottom: 0 !important; 
+    visibility: hidden;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
     padding-top: 0 !important;
     padding-bottom: 0 !important;
     border-width: 0 !important;
     opacity: 0;
-    transition: max-height 0.35s ease-out, 
+    transition: max-height 0.35s ease-out,
                 opacity 0.2s ease-out 0.1s,
-                margin-top 0.35s ease-out, 
-                padding-top 0.35s ease-out, 
+                margin-top 0.35s ease-out,
+                padding-top 0.35s ease-out,
                 padding-bottom 0.35s ease-out,
                 border-width 0.35s ease-out,
-                visibility 0s linear 0.35s; 
+                visibility 0s linear 0.35s;
 }
 
 #logTransactionSectionCard.open {
     max-height: 500px; /* Adjust if content is taller */
     visibility: visible;
     opacity: 1;
-    margin-top: 15px !important;    
-    margin-bottom: 15px !important; 
-    padding-top: 18px !important;   
+    margin-top: 15px !important;
+    margin-bottom: 15px !important;
+    padding-top: 18px !important;
     padding-bottom: 18px !important;
-    border-width: 1px !important;   
-    transition: max-height 0.35s ease-in, 
+    border-width: 1px !important;
+    transition: max-height 0.35s ease-in,
                 opacity 0.3s ease-in,
-                margin-top 0.35s ease-in, 
-                padding-top 0.35s ease-in, 
+                margin-top 0.35s ease-in,
+                padding-top 0.35s ease-in,
                 padding-bottom 0.35s ease-in,
                 border-width 0.35s ease-in,
                 visibility 0s linear 0s;
@@ -441,14 +452,15 @@ body.dark-mode button.accent-bg-button { /* Soft Lime Yellow bg */
 .chat-container {
     position: fixed;
     bottom: 145px;
-    right: 15px;   
-    left: auto;    
-    width: auto;   
-    min-width: 280px; 
-    max-width: min(90vw, 320px); 
-    margin-left: auto; 
+    right: 15px;
+    left: auto;
+    width: auto;
+    min-width: 280px;
+    max-width: min(90vw, 320px);
+    max-height: 60vh;
+    margin-left: auto;
     background-color: var(--card-bg);
-    border-radius: 16px; 
+    border-radius: 16px;
     box-shadow: 0 5px 20px rgba(0,0,0,0.25);
     display: flex;
     flex-direction: column;
@@ -539,14 +551,14 @@ body.dark-mode #historyTable th { background-color: var(--subtle-bg); color: var
 body.dark-mode .total-balance { background-color: var(--card-bg); }
 
 #currencySymbolTotalBalance {
-    font-size: 1rem; 
-    font-weight: 500;  
+    font-size: 1rem;
+    font-weight: 500;
     color: var(--text-color);
-    margin-right: 0.2em; 
+    margin-right: 0.2em;
 }
 #totalBalance {
-  font-size: 1rem;   
-  font-weight: 600;    
+  font-size: 1rem;
+  font-weight: 600;
   color: var(--text-color);
 }
 #logTransactionSectionCard > h4 {
@@ -614,9 +626,101 @@ body:not(.dark-mode) .chatbot-fab {
 .fab:hover, .chatbot-fab:hover { background-position: right center; transform: translateY(-2px) scale(1.05); }
 .fab:active, .chatbot-fab:active { transform: scale(0.95); box-shadow: var(--shadow-depth-button-pressed); }
 
-.bottom-nav { position: fixed; bottom: 0; width: 100%; max-width: 600px; left: 50%; transform: translateX(-50%); display: flex; justify-content: space-around; background-color: var(--card-bg); border-top: 1px solid var(--border-color); padding: 5px 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 950; border-radius: 16px 16px 0 0; }
-.bottom-nav button { background: none; border: none; font-size: 12px; color: var(--text-secondary-color); flex: 1; padding: 8px 0; margin: 0; transition: color 0.2s ease; border-radius: 0; font-weight: 500; }
-.bottom-nav button.active { color: var(--primary-color); font-weight: 600; }
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  max-width: 600px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: space-around;
+  background-color: var(--card-bg); /* Main background for the nav bar */
+  border-top: 1px solid var(--border-color);
+  padding: 5px 0; /* Padding around the buttons */
+  box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+  z-index: 950;
+  border-radius: 16px 16px 0 0; /* Overall nav bar rounding */
+}
+
+.bottom-nav button {
+  flex: 1; /* Buttons share space equally */
+  background-color: transparent; /* Inactive buttons are transparent against nav bar */
+  /* OR a very subtle distinct background for inactive tabs:
+     background-color: rgba(var(--text-secondary-color-rgb), 0.05); /* Very subtle background
+  */
+  border: 1px solid transparent; /* Start with a transparent border */
+  /* Apply the tab shape to ALL buttons */
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+
+  color: var(--text-secondary-color); /* Text color for inactive buttons */
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px 5px;
+  margin: 0 1px; /* Tiny margin to help delineate tabs if they have borders */
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.3s ease;
+  position: relative;
+  overflow: hidden; /* This is important for clipping glows to the border-radius */
+  text-align: center;
+  -webkit-tap-highlight-color: transparent; /* Added this for safety */
+  cursor: pointer; /* Ensure cursor is pointer */
+}
+
+/* Add a subtle border to inactive buttons to show their shape */
+/* We only want side and top borders for inactive tabs */
+.bottom-nav button:not(.active) {
+    border-top: 1px solid var(--border-color);
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    border-bottom: none; /* No bottom border for inactive tabs */
+}
+/* Remove left border for the very first button to avoid double border with nav edge */
+.bottom-nav button:not(.active):first-child {
+    border-left: none;
+}
+/* Remove right border for the very last button */
+.bottom-nav button:not(.active):last-child {
+    border-right: none;
+}
+
+.bottom-nav button.active {
+  /* --- Background for the active button --- */
+  /* For Dark Mode (using --subtle-bg as an example for a distinct but not overpowering background) */
+  background-color: var(--subtle-bg); /* In Dark Mode, this is #2a2d2a */
+
+  /* --- Text color for the active button --- */
+  color: var(--primary-color);
+  font-weight: 600;
+
+  /* --- Shape: Rounded top corners, flat bottom --- */
+  border-top-left-radius: 12px;  /* Adjust this value as needed, e.g., 10px, 14px, or 16px */
+  border-top-right-radius: 12px; /* Make it same as top-left for a symmetrical tab */
+  border-bottom-left-radius: 0;  /* Ensures flat bottom-left corner */
+  border-bottom-right-radius: 0; /* Ensures flat bottom-right corner */
+
+  /* Optional: Add a subtle top border to the active tab if it helps definition */
+  /* border-top: 1px solid var(--primary-color); */
+}
+
+body:not(.dark-mode) .bottom-nav button.active {
+background-color: #E5E7EB;
+}
+
+
+/* Apply top-left rounding if the active button is the FIRST button */
+.bottom-nav button.active:first-child {
+  border-top-left-radius: 14px; /* Match parent .bottom-nav's radius (16px), or slightly less for inset look */
+  /* border-bottom-left-radius: 0; Ensure other corners are not rounded unless intended */
+}
+
+/* Apply top-right rounding if the active button is the LAST button */
+.bottom-nav button.active:last-child {
+  border-top-right-radius: 14px; /* Match parent .bottom-nav's radius (16px), or slightly less */
+  /* border-bottom-right-radius: 0; */
+}
 
 .toast-notification { position: fixed; bottom: 160px; left: 50%; transform: translateX(-50%); background-color: rgba(0, 0, 0, 0.7); color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; z-index: 1100; white-space: nowrap; }
 .toast-notification.show { opacity: 1; visibility: visible; }
@@ -629,7 +733,7 @@ body:not(.dark-mode) .chatbot-fab {
 body.dark-mode .chat-container { box-shadow: 0 5px 20px rgba(0,0,0,0.4); }
 .chat-container.open { transform: scale(1) translateY(0); opacity: 1; visibility: visible; }
 .chat-header { background-color: var(--primary-color); color: var(--light-text-color); padding: 10px 15px; font-weight: 600; font-size: 1rem; border-top-left-radius: 16px; border-top-right-radius: 16px; display: flex; justify-content: space-between; align-items: center; }
-body.dark-mode .chat-header { color: #FFFFFF; } 
+body.dark-mode .chat-header { color: #FFFFFF; }
 .chat-header .close-btn { background: rgba(0,0,0,0.2); border: none; color: white; font-size: 1rem; cursor: pointer; padding: 0; line-height: 1; margin-top: 0; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s ease; }
 .chat-header .close-btn:hover { background: rgba(0,0,0,0.4); }
 .chat-messages { flex-grow: 1; padding: 10px; overflow-y: auto; background-color: var(--body-bg); color: var(--text-color); border-bottom: 1px solid var(--border-color); transition: background-color 0.3s ease; font-size: 0.85rem; }
@@ -638,7 +742,7 @@ body.dark-mode .chat-header { color: #FFFFFF; }
 .chat-message.bot { text-align: left; }
 .chat-message span { display: inline-block; max-width: 85%; padding: 8px 12px; border-radius: 12px; word-wrap: break-word; }
 .chat-message.user span { background-color: var(--primary-color); color: var(--light-text-color); border-bottom-right-radius: 4px; }
-body.dark-mode .chat-message.user span { color: #FFFFFF; } 
+body.dark-mode .chat-message.user span { color: #FFFFFF; }
 .chat-message.bot span { background-color: var(--subtle-bg); color: var(--text-color); border-bottom-left-radius: 4px; }
 body.dark-mode .chat-message.bot span { background-color: var(--subtle-bg); color: var(--text-color); }
 .chat-input-area { display: flex; padding: 8px; border-top: 1px solid var(--border-color); gap: 8px; align-items: center; }
@@ -649,7 +753,7 @@ body:not(.dark-mode) .chat-input-area input {
 }
 
 .chat-input-area button { width: auto; padding: 8px 12px; border-radius: 10px; font-size: 0.85rem; background-image: linear-gradient(to right, var(--gradient-primary-start) 0%, var(--gradient-primary-end) 51%, var(--gradient-primary-start) 100%); color: var(--light-text-color); margin-top: 0; flex-shrink: 0; }
-body.dark-mode .chat-input-area button { color: #FFFFFF; } 
+body.dark-mode .chat-input-area button { color: #FFFFFF; }
 .chat-icon-btn { width: 36px; height: 36px; border-radius: 10px; background-image: linear-gradient(to right, var(--gradient-secondary-start) 0%, var(--gradient-secondary-end) 51%, var(--gradient-secondary-start) 100%); color: var(--light-text-color); font-size: 18px; }
 /* Chat icon button text color for light mode */
 body:not(.dark-mode) .chat-icon-btn { color: #1F2937; } /* Deep Charcoal Gray on Sky Aqua */
@@ -692,17 +796,17 @@ body.dark-mode .chat-icon-btn { color: #0D0F17; } /* Dark text on Mint Green but
 .app-section.fade-out-start { animation: fadeOutEffect 0.3s ease-out forwards; }
 
 #logTransactionSectionCard .payment-method-options,
-.payment-method-options { 
+.payment-method-options {
     display: flex;
-    justify-content: space-between; 
+    justify-content: space-between;
     align-items: center;
-    flex-wrap: nowrap;             
-    gap: 5px;                     
+    flex-wrap: nowrap;
+    gap: 5px;
     width: 100%;
     box-sizing: border-box;
     margin-top: 10px;
-    margin-bottom: 18px; 
-    padding: 5px 0; 
+    margin-bottom: 18px;
+    padding: 5px 0;
 }
 
 #logTransactionSectionCard .payment-method-options label,
@@ -711,17 +815,17 @@ body.dark-mode .chat-icon-btn { color: #0D0F17; } /* Dark text on Mint Green but
     align-items: center;
     cursor: pointer;
     font-family: 'Poppins', 'Roboto', sans-serif;
-    font-size: 12px;       
+    font-size: 12px;
     color: var(--text-color);
-    padding: 4px 2px;      
+    padding: 4px 2px;
     margin: 0;
     line-height: 1.2;
     text-align: left;
-    white-space: nowrap;   
-    flex-grow: 0;          
-    flex-shrink: 1;        
-    overflow: hidden;      
-    text-overflow: ellipsis; 
+    white-space: nowrap;
+    flex-grow: 0;
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 #logTransactionSectionCard .payment-method-options label:hover {
     background-color: rgba(var(--primary-color-rgb), 0.05);
