@@ -332,7 +332,196 @@ function renderHowWasMyDayChart() {
         renderDailyBarChart(); // Render the chart when it's made visible
     }
 } 
-   function getDailyExpenseDataForChart() {
+  
+    function analyzeFinancialMonth(monthData, monthKey) { // monthKey is string like "June 2025"
+    const metrics = {
+        month: monthKey,
+        totalIncome: parseFloat(monthData.income) || 0,
+        totalSpentOverall: 0,
+        totalExpenseSpent: 0,
+        totalInvestmentSpent: 0,
+        totalAutoDeductSpent: 0, // Specifically for EMIs/Loans that are auto-deducted expenses
+        spendingByCategory: {}, // To store sum of spending per category name
+        topSpendingCategories: [],
+        transferCount: 0,
+        totalTransferAmount: 0,
+        savings: 0,
+        savingsRate: 0,
+        // For 50/30/20 rule - these are heuristic-based estimates
+        needsSpending: 0,
+        wantsSpending: 0,
+        savingsAndDebtRepaymentContribution: 0, // For the '20' part
+        unclassifiedManualExpenses: 0, // For manual expenses not easily categorized
+    };
+
+    if (!monthData.categories || !Array.isArray(monthData.categories)) {
+         console.warn(`No categories data for month: ${monthKey}`);
+         monthData.categories = []; // Ensure it's an array to prevent errors
+    }
+    
+    monthData.categories.forEach(cat => {
+        const spent = parseFloat(cat.spent) || 0;
+        metrics.totalSpentOverall += spent;
+        metrics.spendingByCategory[cat.name] = (metrics.spendingByCategory[cat.name] || 0) + spent;
+
+        if (cat.type === 'investment') {
+            metrics.totalInvestmentSpent += spent;
+            metrics.savingsAndDebtRepaymentContribution += spent; // Investments count towards the '20'
+        } else if (cat.type === 'expense') {
+            metrics.totalExpenseSpent += spent;
+            if (cat.deductionType === 'auto') {
+                metrics.totalAutoDeductSpent += spent;
+                // Heuristic categorization for auto-deducted expenses:
+                if (cat.name.toLowerCase().includes('loan') || cat.name.toLowerCase().includes('emi') || cat.name.toLowerCase().includes('debt')) {
+                    metrics.savingsAndDebtRepaymentContribution += spent; // Debt repayment part of '20'
+                } else if (['rent', 'mortgage', 'utilities', 'insurance', 'childcare', 'healthcare bill'].some(need => cat.name.toLowerCase().includes(need))) {
+                    metrics.needsSpending += spent;
+                } else {
+                    // If an auto-deduct isn't clearly debt or a common need, it's tricky.
+                    // For now, let's put other auto-deducts into needs, assuming they are fixed essentials.
+                    metrics.needsSpending += spent; 
+                }
+            } else { // Manual expenses - harder to classify
+                if (['groceries', 'food', 'transport', 'utilities', 'rent', 'childcare', 'healthcare', 'insurance', 'medicine', 'essential supplies'].some(need => cat.name.toLowerCase().includes(need))) {
+                    metrics.needsSpending += spent;
+                } else if (['entertainment', 'dining out', 'hobbies', 'shopping', 'travel', 'subscriptions', 'gifts', 'luxury'].some(want => cat.name.toLowerCase().includes(want))) {
+                    metrics.wantsSpending += spent;
+                } else {
+                    metrics.unclassifiedManualExpenses += spent; // For things not easily matched
+                }
+            }
+        }
+    });
+    
+    // Handle unclassified manual expenses:
+    if (metrics.unclassifiedManualExpenses > 0) {
+        metrics.wantsSpending += metrics.unclassifiedManualExpenses; // Tentatively add to "Wants"
+    }
+
+    metrics.topSpendingCategories = Object.entries(metrics.spendingByCategory)
+        .filter(([,amount]) => amount > 0)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 3) // Get top 3 spending categories
+        .map(([name, amount]) => ({ name, amount }));
+
+    if (monthData.history && Array.isArray(monthData.history)) {
+        monthData.history.forEach(transaction => {
+            if (transaction.type === 'transfer') {
+                metrics.transferCount++;
+                metrics.totalTransferAmount += parseFloat(transaction.amount) || 0;
+            }
+        });
+    }
+
+    metrics.savings = metrics.totalIncome - metrics.totalSpentOverall;
+    if (metrics.totalIncome > 0) {
+        metrics.savingsRate = (metrics.savings / metrics.totalIncome) * 100;
+    } else {
+        metrics.savingsRate = metrics.totalSpentOverall > 0 ? -Infinity : 0;
+    }
+    
+    return metrics;
+}
+
+function suggestAndAnalyzeFinancialRule(metrics, income, currencySymbol) {
+    // Ensure currencySymbol is the actual symbol (e.g., "₹") and not a placeholder string.
+    // And that metrics and income contain valid numbers.
+
+    let suggestedRule = { 
+        name: "50/30/20", 
+        needsTarget: 50, 
+        wantsTarget: 30, 
+        savingsTarget: 20, 
+        details: "(50% Needs, 30% Wants, 20% Savings/Debt)" 
+    };
+    let ruleExplanation = "";
+    let userBreakdownHTML = ""; // This is where the problematic HTML is constructed
+    let ruleFeedbackPoints = [];
+
+    const needsActualPercent = income > 0 ? (metrics.needsSpending / income) * 100 : 0;
+    const wantsActualPercent = income > 0 ? (metrics.wantsSpending / income) * 100 : 0;
+    const savingsActualPercent = income > 0 ? (metrics.savingsAndDebtRepaymentContribution / income) * 100 : 0;
+
+    if (income > 0) {
+        if (needsActualPercent > 58 && savingsActualPercent < 12) {
+            suggestedRule = { name: "60/30/10", needsTarget: 60, wantsTarget: 30, savingsTarget: 10, details: "(60% Needs, 30% Wants, 10% Savings/Debt)" };
+            // USE BACKTICKS (`) for template literals
+            ruleExplanation = `Considering your current essential spending, the <strong>${suggestedRule.name} rule</strong> ${suggestedRule.details} might be a practical approach for now. The goal would be to gradually shift towards more savings.`;
+        } else if (income < 30000 && appSettings.currency === 'INR') { 
+            suggestedRule = { name: "70/20/10", needsTarget: 70, wantsTarget: null, savingsTarget: 20, extraTarget:10, details: "(70% Living Expenses, 20% Savings, 10% Debt/Giving)" , type: "simplified_living"};
+            ruleExplanation = `For tighter budgets, the <strong>${suggestedRule.name} rule</strong> ${suggestedRule.details} can be useful. It focuses 70% on all living costs.`;
+        } else if (metrics.totalInvestmentSpent > (income * 0.10) && income > 60000 && appSettings.currency === 'INR') { 
+            suggestedRule = { name: "40/30/20/10", needsTarget: 40, wantsTarget: 30, savingsTarget: 20, extraTarget: 10, details: "(40% Needs, 30% Wants, 20% Savings/Debt, 10% Investing)", type: "advanced_investing" };
+            ruleExplanation = `Since you're already investing, the <strong>${suggestedRule.name} rule</strong> ${suggestedRule.details} could help structure your finances further, with a dedicated portion for investments.`;
+        } else { 
+            ruleExplanation = `A balanced approach is the <strong>${suggestedRule.name} rule</strong> ${suggestedRule.details}. This is a great general guideline.`;
+        }
+    } else {
+        ruleExplanation = "To get specific rule suggestions, please set your monthly income first. A common guideline is the 50/30/20 rule (50% Needs, 30% Wants, 20% Savings/Debt)."
+        return { 
+            ruleNameHtml: "N/A", 
+            ruleExplanationHtml: `<p>${ruleExplanation}</p>`, 
+            userBreakdownHTML: "<p>Please set your income to see a breakdown.</p>", 
+            ruleFeedbackHTML: "" 
+        };
+    }
+
+    // Constructing userBreakdownHTML - THIS IS THE CRITICAL PART
+    // Ensure ALL string concatenations that involve variables use BACKTICKS (`)
+    if (suggestedRule.type === "simplified_living") {
+        const totalLivingExpenses = metrics.needsSpending + metrics.wantsSpending;
+        const livingActualPercent = income > 0 ? (totalLivingExpenses / income) * 100 : 0;
+        // Make sure all these variables are numbers before .toFixed() is called.
+        // currencySymbol must be the actual symbol string.
+
+        userBreakdownHTML = `Your estimated spending for the <strong>${suggestedRule.name}</strong> guideline:
+            <ul>
+                <li>Living Expenses (Target ${suggestedRule.needsTarget}%): <strong>${livingActualPercent.toFixed(1)}%</strong> (${currencySymbol}${totalLivingExpenses.toFixed(2)})</li>
+                <li>Savings (Target ${suggestedRule.savingsTarget}%): <strong>${savingsActualPercent.toFixed(1)}%</strong> (${currencySymbol}${metrics.savingsAndDebtRepaymentContribution.toFixed(2)})</li>
+                <li>Debt/Giving (Target ${suggestedRule.extraTarget}%): This portion requires your specific allocation.</li>
+            </ul>`;
+        if (livingActualPercent > suggestedRule.needsTarget + 5) ruleFeedbackPoints.push("Your total living expenses are a bit above the target.");
+        if (savingsActualPercent < suggestedRule.savingsTarget - 2) ruleFeedbackPoints.push("Focus on increasing your savings allocation.");
+
+    } else if (suggestedRule.type === "advanced_investing") { 
+        const generalSavingsAmount = metrics.savingsAndDebtRepaymentContribution - metrics.totalInvestmentSpent;
+        const generalSavingsPercent = income > 0 ? (generalSavingsAmount / income) * 100 : 0;
+        const investmentActualPercent = income > 0 ? (metrics.totalInvestmentSpent / income) * 100 : 0;
+
+        userBreakdownHTML = `Your estimated spending for the <strong>${suggestedRule.name}</strong> guideline:
+            <ul>
+                <li>Needs (Target ${suggestedRule.needsTarget}%): <strong>${needsActualPercent.toFixed(1)}%</strong> (${currencySymbol}${metrics.needsSpending.toFixed(2)})</li>
+                <li>Wants (Target ${suggestedRule.wantsTarget}%): <strong>${wantsActualPercent.toFixed(1)}%</strong> (${currencySymbol}${metrics.wantsSpending.toFixed(2)})</li>
+                <li>General Savings/Debt (Target ${suggestedRule.savingsTarget}%): <strong>${generalSavingsPercent.toFixed(1)}%</strong> (${currencySymbol}${generalSavingsAmount.toFixed(2)})</li>
+                <li>Investing (Target ${suggestedRule.extraTarget}%): <strong>${investmentActualPercent.toFixed(1)}%</strong> (${currencySymbol}${metrics.totalInvestmentSpent.toFixed(2)})</li>
+            </ul>`;
+        if (investmentActualPercent < suggestedRule.extraTarget -2) ruleFeedbackPoints.push("Consider increasing your dedicated investment amount.");
+        if (generalSavingsPercent < suggestedRule.savingsTarget -2) ruleFeedbackPoints.push("Look for ways to boost your general savings.");
+        if (wantsActualPercent > suggestedRule.wantsTarget + 5) ruleFeedbackPoints.push("Your 'Wants' are a bit high for this rule.");
+
+    } else { // For 50/30/20 or 60/30/10 (default case)
+        userBreakdownHTML = `Your estimated spending for the <strong>${suggestedRule.name}</strong> guideline:
+            <ul>
+                <li>Needs (Target ${suggestedRule.needsTarget}%): <strong>${needsActualPercent.toFixed(1)}%</strong> (${currencySymbol}${metrics.needsSpending.toFixed(2)})</li>
+                <li>Wants (Target ${suggestedRule.wantsTarget}%): <strong>${wantsActualPercent.toFixed(1)}%</strong> (${currencySymbol}${metrics.wantsSpending.toFixed(2)})</li>
+                <li>Savings & Debt (Target ${suggestedRule.savingsTarget}%): <strong>${savingsActualPercent.toFixed(1)}%</strong> (${currencySymbol}${metrics.savingsAndDebtRepaymentContribution.toFixed(2)})</li>
+            </ul>`;
+        if (savingsActualPercent < suggestedRule.savingsTarget - 2) ruleFeedbackPoints.push(`Your savings are below the ${suggestedRule.savingsTarget}% target. Aim to increase this.`);
+        if (wantsActualPercent > suggestedRule.wantsTarget + 5) ruleFeedbackPoints.push(`'Wants' spending is currently higher than the ${suggestedRule.wantsTarget}% suggested.`);
+        if (needsActualPercent > suggestedRule.needsTarget + 5 && savingsActualPercent < suggestedRule.savingsTarget -2) ruleFeedbackPoints.push("High 'Needs' spending might be impacting your ability to save. Review fixed costs if possible.");
+        if (savingsActualPercent > suggestedRule.savingsTarget + 2) ruleFeedbackPoints.push(`Great job on your savings & debt allocation, it's above the ${suggestedRule.savingsTarget}% target!`);
+    }
+    
+    const ruleFeedbackHTML = ruleFeedbackPoints.length > 0 ? `<ul>${ruleFeedbackPoints.map(p => `<li>${p}</li>`).join('')}</ul>` : "<p>Your distribution looks quite balanced with this guideline for now!</p>";
+
+    return {
+        ruleNameHtml: `<strong>${suggestedRule.name}</strong> ${suggestedRule.details}`,
+        ruleExplanationHtml: `<p>${ruleExplanation}</p>`,
+        userBreakdownHTML, // This string must be correctly using template literals
+        ruleFeedbackHTML
+    };
+}
+    function getDailyExpenseDataForChart() {
     const currentMonthData = getCurrentMonthData();
     const history = currentMonthData.history;
     const dailyExpenses = {}; // Object to store expenses sum per day
@@ -570,6 +759,282 @@ function renderDailyBarChart() {
     let howWasMyDayBarChartInstance;
     // Dashboard Gauge Chart Instances
     let investmentGaugeChart, expenseGaugeChart, loanGaugeChart;
+
+    const daikoInsightsModal = document.getElementById('daikoInsightsModal');
+    const daikoInsightsContentEl = document.getElementById('daikoInsightsContent');
+    const daikoInsightsModalTitleEl = document.getElementById('daikoInsightsModalTitle');
+
+
+function openDaikoInsightsModal() {
+    if (!daikoInsightsModal || !daikoInsightsContentEl) return;
+
+    daikoInsightsModal.classList.add('active');
+    daikoInsightsContentEl.innerHTML = `<p>Hi ${userProfile.name || 'there'}! Let me take a moment to analyze your finances...</p>`;
+    if (daikoInsightsModalTitleEl) {
+        daikoInsightsModalTitleEl.textContent = `Daiko's Financial Insights for ${getFullDateString(currentMonth)}`;
+    }
+
+    // Set initial state of the speak button
+    const ttsButton = document.getElementById('toggleDaikoSpeakBtn');
+    if (ttsButton) {
+        if (isSpeakingEnabled && synth) { // Also check if synth is available
+            ttsButton.innerHTML = '🔊';
+            ttsButton.classList.remove('muted');
+        } else {
+            ttsButton.innerHTML = '🔇';
+            ttsButton.classList.add('muted');
+        }
+    }
+
+    setTimeout(async () => {
+        await populateDaikoInsights();
+    }, 700);
+}
+
+async function populateDaikoInsights() {
+    if (!daikoInsightsContentEl) {
+        console.error("Daiko Insights content element not found!");
+        return;
+    }
+    let fullNarrationText = ""; 
+
+    const currencySymbol = currencySymbols[appSettings.currency] || '₹';
+    const currentMonthObj = new Date(currentMonth); 
+    const currentMonthKey = getMonthYearString(currentMonthObj); 
+    const currentMonthData = getCurrentMonthData(); 
+    const currentMetrics = analyzeFinancialMonth(currentMonthData, currentMonthKey); // Ensure analyzeFinancialMonth is defined and working
+
+    const prevMonthDate = new Date(currentMonthObj);
+    prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+    const prevMonthKey = getMonthYearString(prevMonthDate); 
+    const prevMonthData = monthlyData[prevMonthKey]; // Get previous month's raw data
+    
+    let insightsHTML = "";
+    let greeting = `Hi ${userProfile.name || 'there'}! I've reviewed your finances. Here's what I see:`;
+    insightsHTML += `<p>${greeting}</p>`;
+    fullNarrationText += greeting + " ";
+
+    // --- Section 1: Previous Month Review (REFINED LOGIC) ---
+    let prevMonthNarrationAdded = false; // Flag to check if we add the "Flashback" title
+    let tempPrevMonthHTML = "";
+    let tempPrevMonthNarration = "";
+
+    if (prevMonthData) {
+        const prevMetrics = analyzeFinancialMonth(prevMonthData, prevMonthKey);
+        // Only proceed if there's actual income or spending to report for the previous month
+        if (prevMetrics && (prevMetrics.totalIncome > 0 || prevMetrics.totalSpentOverall > 0)) {
+            let prevMonthSummary = "";
+            if (prevMetrics.totalIncome > 0) {
+                // CORRECTED TEMPLATE LITERAL USAGE
+                prevMonthSummary += `Last month, your income was ${currencySymbol}${prevMetrics.totalIncome.toFixed(2)}. You spent ${currencySymbol}${prevMetrics.totalSpentOverall.toFixed(2)}. `;
+                if (prevMetrics.savings >= 0) {
+                    prevMonthSummary += `This means you saved ${currencySymbol}${prevMetrics.savings.toFixed(2)} (${prevMetrics.savingsRate.toFixed(1)}% of income). `;
+                    if (prevMetrics.savingsRate >= 20) {
+                        prevMonthSummary += "Fantastic job on saving! ";
+                    } else if (prevMetrics.savingsRate < 10 && prevMetrics.savingsRate >= 0) {
+                        prevMonthSummary += "That was a bit tight on savings, something to keep an eye on. ";
+                    }
+                } else {
+                    prevMonthSummary += `Looks like you overspent by ${currencySymbol}${Math.abs(prevMetrics.savings).toFixed(2)}. Let's aim for a surplus! `;
+                }
+            } else { // Had spending but no income recorded for prev month
+                 prevMonthSummary = `In ${prevMonthKey}, you spent ${currencySymbol}${prevMetrics.totalSpentOverall.toFixed(2)} with no income recorded for that month. `;
+            }
+            tempPrevMonthHTML += `<p>${prevMonthSummary}</p>`;
+            tempPrevMonthNarration += prevMonthSummary;
+
+            if (prevMetrics.topSpendingCategories && prevMetrics.topSpendingCategories.length > 0) {
+                const topPrevCat = prevMetrics.topSpendingCategories[0];
+                if (topPrevCat && topPrevCat.amount > 0) { // Ensure there's an actual top category with spending
+                    // CORRECTED TEMPLATE LITERAL USAGE
+                    const prevTopSpendingText = `Your main expense area then was <strong>"${topPrevCat.name}"</strong> at ${currencySymbol}${topPrevCat.amount.toFixed(2)}. `;
+                    tempPrevMonthHTML += `<p>${prevTopSpendingText}</p>`;
+                    tempPrevMonthNarration += prevTopSpendingText.replace(/<strong>|<\/strong>/g, "");
+                }
+            }
+             if (prevMetrics.totalInvestmentSpent > 0){
+                // CORRECTED TEMPLATE LITERAL USAGE
+                const prevInvestText = `You also invested ${currencySymbol}${prevMetrics.totalInvestmentSpent.toFixed(2)}. That's the way to go!`;
+                tempPrevMonthHTML += `<p>${prevInvestText}</p>`;
+                tempPrevMonthNarration += prevInvestText;
+             } else {
+                const prevNoInvestText = "I didn't see any investments logged for that month. Remember, every bit counts towards your future goals. ";
+                tempPrevMonthHTML += `<p>${prevNoInvestText}</p>`;
+                tempPrevMonthNarration += prevNoInvestText;
+             }
+            prevMonthNarrationAdded = true; // We have content for previous month
+        }
+    }
+
+    if (prevMonthNarrationAdded) {
+        insightsHTML += `<div class="insight-section"><h5>Flashback to ${prevMonthKey}...</h5>`;
+        fullNarrationText += `Flashback to ${prevMonthKey}. `;
+        insightsHTML += tempPrevMonthHTML;
+        fullNarrationText += tempPrevMonthNarration;
+        insightsHTML += `</div>`;
+    } else {
+        // Optional: If you still want to mention that no data is available explicitly.
+        // insightsHTML += `<div class="insight-section"><h5>Last Month (${prevMonthKey})</h5><p>I don't have enough activity from last month to give you a detailed review. Let's focus on the current one!</p></div>`;
+        // fullNarrationText += `I don't have enough activity from last month to give you a detailed review. Let's focus on the current one! `;
+        // Or simply omit the section if there's nothing to say, as implemented by the flag.
+    }
+
+
+    // --- Section 2: Current Month's Dynamic Tips (Ensure template literals are correct here too) ---
+    insightsHTML += `<div class="insight-section"><h5>For ${currentMonthKey} right now...</h5>`;
+    fullNarrationText += `For ${currentMonthKey} right now. `;
+    let currentTipsList = [];
+    const today = new Date(); //
+    const dayOfMonth = today.getDate(); 
+
+    if (currentMetrics.totalIncome === 0 && currentMetrics.totalSpentOverall > 0) {
+        currentTipsList.push("I notice you've started logging expenses, but your income for this month isn't set. Setting it helps me give you much better advice!");
+    } else if (currentMetrics.totalIncome > 0) {
+        const spendPercentageOfIncome = (currentMetrics.totalSpentOverall / currentMetrics.totalIncome) * 100;
+        // CORRECTED TEMPLATE LITERAL USAGE (Example, apply to all similar instances)
+         if (dayOfMonth <= 7 && spendPercentageOfIncome < 20) {
+             currentTipsList.push("It's the start of the month! You're off to a good start with your spending. Keep tracking!");
+         } else if (dayOfMonth > 15 && dayOfMonth <= 22 && spendPercentageOfIncome > 65 && currentMetrics.savingsRate < 10) { 
+             currentTipsList.push(`We're past mid-month and have used over ${spendPercentageOfIncome.toFixed(0)}% of your income. Let's be a bit more mindful with spending for the rest of the month to hit those saving goals!`);
+         }
+         if (currentMetrics.savings < 0) { 
+             currentTipsList.push(`<strong>Alert!</strong> Your current spending of ${currencySymbol}${currentMetrics.totalSpentOverall.toFixed(2)} has exceeded your income of ${currencySymbol}${currentMetrics.totalIncome.toFixed(2)} by ${currencySymbol}${Math.abs(currentMetrics.savings).toFixed(2)}. Let's try to curb non-essential spending immediately.`);
+         }
+    }
+    
+    (currentMonthData.categories || []).forEach(fund => { // Added safeguard for categories
+        if (fund.type === 'expense' && fund.deductionType === 'manual' && fund.initialBalance > 0) { 
+            const balance = parseFloat(fund.balance) || 0; 
+            const initialBalance = parseFloat(fund.initialBalance) || 0; 
+            const remainingPercentage = initialBalance > 0 ? (balance / initialBalance) * 100 : 0; 
+            // CORRECTED TEMPLATE LITERAL USAGE (Example, apply to all similar instances)
+            if (remainingPercentage <= 10) { 
+                currentTipsList.push(`Your fund "<strong>${fund.name}</strong>" is critically low at ${currencySymbol}${balance.toFixed(2)}. Try to avoid spending from this for now.`);
+            } else if (remainingPercentage <= 35) { 
+                currentTipsList.push(`Watch out! Your fund "<strong>${fund.name}</strong>" is running low, with ${currencySymbol}${balance.toFixed(2)} left.`);
+            }
+        }
+        if (fund.deductionType === 'auto' && fund.dueDay && fund.emiAmount > 0) { 
+            const dueDateThisMonth = new Date(currentMonthObj.getFullYear(), currentMonthObj.getMonth(), fund.dueDay); 
+            const diffTime = dueDateThisMonth - today; 
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+            // CORRECTED TEMPLATE LITERAL USAGE (Example, apply to all similar instances)
+            if (diffDays >= 0 && diffDays <= 5) { 
+                 currentTipsList.push(`Heads up! Your payment for "<strong>${fund.name}</strong>" (${currencySymbol}${fund.emiAmount.toFixed(2)}) is due ${diffDays === 0 ? 'today' : `in ${diffDays} day(s)`}.`); 
+            }
+        }
+    });
+    
+    if (currentMetrics.topSpendingCategories && currentMetrics.topSpendingCategories.length > 0 && currentMetrics.totalIncome > 0) { 
+        const topCat = currentMetrics.topSpendingCategories[0]; 
+        if (topCat && (topCat.amount / currentMetrics.totalIncome) > 0.25) { 
+            // CORRECTED TEMPLATE LITERAL USAGE
+            currentTipsList.push(`Spending on "<strong>${topCat.name}</strong>" (${currencySymbol}${topCat.amount.toFixed(2)}) is one of your highest this month. Worth a quick review!`);
+        }
+    }
+
+    if (currentTipsList.length === 0) {
+        if (currentMetrics.totalIncome > 0 && currentMetrics.totalSpentOverall === 0) {
+            insightsHTML += `<p>Looking good! No expenses logged yet for this month. A fresh start!</p>`;
+            fullNarrationText += "Looking good! No expenses logged yet for this month. A fresh start! ";
+        } else {
+            insightsHTML += `<p>Everything seems balanced for now. Keep tracking your finances regularly!</p>`;
+            fullNarrationText += "Everything seems balanced for now. Keep tracking your finances regularly! ";
+        }
+    } else {
+        insightsHTML += `<ul>${currentTipsList.map(tip => `<li>${tip}</li>`).join('')}</ul>`;
+        currentTipsList.forEach(tip => {
+            const cleanTip = tip.replace(/<strong>|<\/strong>/g, ""); 
+            fullNarrationText += cleanTip + " ";
+        });
+    }
+    insightsHTML += `</div>`;
+
+    // --- Section 3: Financial Rule Suggestion & Analysis (Ensure template literals are correct here too) ---
+    insightsHTML += `<div class="insight-section"><h5>Choosing a Financial Guideline</h5>`;
+    fullNarrationText += `Next, let's consider a financial guideline that might help you. `;
+
+    if (currentMetrics.totalIncome > 0) {
+        // Make sure suggestAndAnalyzeFinancialRule also uses correct template literals
+        const ruleAnalysis = suggestAndAnalyzeFinancialRule(currentMetrics, currentMetrics.totalIncome, currencySymbol); 
+
+        insightsHTML += `<div class="important-financial-rule">${ruleAnalysis.ruleExplanationHtml}</div>`;
+        fullNarrationText += ruleAnalysis.ruleExplanationHtml.replace(/<[^>]*>/g, " ") + " "; 
+
+        insightsHTML += ruleAnalysis.userBreakdownHTML;
+        const breakdownForTTS = ruleAnalysis.userBreakdownHTML.replace(/<li>/g, ". ").replace(/<[^>]*>/g, " "); 
+        fullNarrationText += "Your breakdown against this is: " + breakdownForTTS + " ";
+        
+        insightsHTML += `<div><h5>My Observations:</h5>${ruleAnalysis.ruleFeedbackHTML}</div>`;
+        fullNarrationText += "My observations are: " + ruleAnalysis.ruleFeedbackHTML.replace(/<li>/g, ". ").replace(/<[^>]*>/g, " ") + " ";
+        
+        insightsHTML += `<p class="disclaimer">Remember, my categorization of your funds into Needs/Wants is an estimate. Review your spending against the suggested rule using your own judgment. You can also explore other common rules like the standard 50/30/20, 70/20/10, or 40/30/20/10 to see what fits your life best!</p>`;
+        fullNarrationText += "Remember, my categorizations are estimates. Use your judgment and feel free to explore other rules too! ";
+
+    } else {
+        insightsHTML += "<p>Once you set your income and log some expenses, I can suggest a budgeting rule and show how your spending aligns with it.</p>";
+        fullNarrationText += "Once you set your income and log expenses, I can suggest a budgeting rule for you. ";
+    }
+    insightsHTML += `</div>`;
+    
+    daikoInsightsContentEl.innerHTML = insightsHTML;
+
+    if (isSpeakingEnabled && synth) { 
+        speakText(fullNarrationText);
+    }
+}
+
+
+
+function closeDaikoInsightsModal() {
+    if (daikoInsightsModal) {
+        daikoInsightsModal.classList.remove('active');
+        if (synth && synth.speaking) {
+            synth.cancel();
+        }
+    }
+}
+
+function toggleDaikoInsightSpeech() {
+    const ttsButton = document.getElementById('toggleDaikoSpeakBtn');
+    const ttsToggleChatbot = document.getElementById('ttsToggle'); // Your existing chatbot TTS toggle
+
+    if (!synth) {
+        showToast("Speech synthesis is not available on this browser.");
+        if(ttsButton) ttsButton.innerHTML = '🔇'; // Show muted
+        if(ttsButton) ttsButton.classList.add('muted');
+        return;
+    }
+
+    isSpeakingEnabled = !isSpeakingEnabled; // Toggle the global flag
+
+    if (isSpeakingEnabled) {
+        if(ttsButton) ttsButton.innerHTML = '🔊'; // Speaker high volume icon
+        if(ttsButton) ttsButton.classList.remove('muted');
+        showToast("Daiko's voice enabled.");
+        // If there's content in the modal and it wasn't speaking, you might want to make it speak the current content.
+        // This depends on how `populateDaikoInsights` handles `isSpeakingEnabled`.
+    } else {
+        if(ttsButton) ttsButton.innerHTML = '🔇'; // Mute icon
+        if(ttsButton) ttsButton.classList.add('muted');
+        if (synth.speaking) {
+            synth.cancel(); // Stop any current speech
+        }
+        showToast("Daiko's voice muted.");
+    }
+
+    // Sync with the chatbot's TTS toggle if you want them linked
+    if (ttsToggleChatbot) {
+        ttsToggleChatbot.checked = isSpeakingEnabled;
+    }
+
+    // Save the preference if you store isSpeakingEnabled in appSettings
+    // For example:
+    // appSettings.isTTSEnabled = isSpeakingEnabled;
+    // saveAppSettings(); 
+    // Note: Your current appSettings doesn't seem to store this, but your chatbot
+    // ttsToggle checkbox implies a state. This function toggles the global isSpeakingEnabled.
+}
 
 
     // Currency Symbols Map
@@ -3188,142 +3653,158 @@ function toggleLogTransactionSection() {
     const sectionOrder = ['dashboardSectionWrapper', 'historySectionWrapper', 'analyticsSectionWrapper', 'settingsSectionWrapper'];
 
 
-    function scrollToSection(sectionId, isSwipe = false) {
-        const newSectionWrapperId = sectionId.replace('-section', 'SectionWrapper');
-        const oldSectionWrapper = document.getElementById(activeSectionWrapperId);
-        const newSectionWrapper = document.getElementById(newSectionWrapperId);
+function scrollToSection(sectionId, isSwipe = false) {
+    const newSectionWrapperId = sectionId.replace('-section', 'SectionWrapper');
+    const oldSectionWrapper = document.getElementById(activeSectionWrapperId);
+    const newSectionWrapper = document.getElementById(newSectionWrapperId);
+    // const daikoFab = document.getElementById('daikoInsightsFab'); // Defined below for clarity
 
-        if (!newSectionWrapper || activeSectionWrapperId === newSectionWrapperId) {
-            if (sectionId === 'create-fund-section' && activeSectionWrapperId !== 'create-fund-section') {
-                openCreateFundModal();
-            }
-            return;
-        }
-
-        if (sectionId === 'create-fund-section') {
+    if (!newSectionWrapper || activeSectionWrapperId === newSectionWrapperId) {
+        if (sectionId === 'create-fund-section' && activeSectionWrapperId !== 'create-fund-section') {
             openCreateFundModal();
-            return;
         }
-
-        const newSectionAnimationEnd = () => {
-            newSectionWrapper.classList.remove('fade-in-start');
-            sectionOrder.forEach(wrapperId => {
-                const isCurrentNewSection = (wrapperId === newSectionWrapperId);
-                const sectionWrapperElement = document.getElementById(wrapperId);
-
-                if (!sectionWrapperElement) return;
-
-                if (wrapperId === 'dashboardSectionWrapper') {
-                    const dashboardElementsToToggle = [
-                        '.total-balance', '#dashboardGaugesContainer', '#toggleLogTransactionBtn',
-                        '#monthlyIncomeCard', '#expenseFundsCard', '#investmentFundsCard',
-                        '#transferFundsCard'
-                    ];
-                    dashboardElementsToToggle.forEach(selector => {
-                        // Query within the specific sectionWrapperElement for accuracy
-                        const el = sectionWrapperElement.querySelector(selector) || document.querySelector(selector);
-                        if (el) {
-                            if (isCurrentNewSection) { // If dashboard IS the new active section
-                                el.style.display = (selector === '#dashboardGaugesContainer' ? 'flex' : 'block');
-                            } else { // If dashboard is NOT the new active section
-                                el.style.display = 'none';
-                            }
-                        }
-                    });
-                    const currentDateDisplayCard = sectionWrapperElement.querySelector('#currentDateDisplay')?.closest('.card');
-                    if (currentDateDisplayCard) {
-                        currentDateDisplayCard.style.display = isCurrentNewSection ? 'block' : 'none';
-                    }
-
-                    const logTransactionCard = document.getElementById('logTransactionSectionCard');
-                    if (logTransactionCard) { 
-                        if (isCurrentNewSection) {
-                            // When dashboard is active, REMOVE any inline display style
-                            // to let CSS classes (and .open) control visibility and animation.
-                            logTransactionCard.style.display = ''; 
-                        } else {
-                            // When dashboard is NOT active, ensure the transaction card is programmatically closed.
-                            // Its overall visibility will be handled by its parent section wrapper being hidden.
-                            logTransactionCard.classList.remove('open'); 
-                        }
-                    }
-                } else { // For other sections (history, analytics, settings)
-                    const mainContentId = wrapperId.replace('SectionWrapper', '-section');
-                    const mainContentDiv = document.getElementById(mainContentId);
-                    if (mainContentDiv) {
-                        mainContentDiv.style.display = isCurrentNewSection ? 'block' : 'none';
-                        if (isCurrentNewSection) {
-                            // Logic to restore toggle states for history and FAQ in other sections
-                            if (wrapperId === 'historySectionWrapper') {
-                                const historyContent = document.getElementById('history');
-                                const historyToggleIcon = document.getElementById('historyToggleIcon');
-                                if (historyContent && historyToggleIcon && historyToggleIcon.textContent === '▲') {
-                                    historyContent.style.display = 'block';
-                                } else if (historyContent) {
-                                    historyContent.style.display = 'none';
-                                }
-                                const howWasMyDayContent = document.getElementById('howWasMyDayGraphContainer');
-    const howWasMyDayToggleIcon = document.getElementById('howWasMyDayGraphToggleIcon');
-    if (howWasMyDayContent && howWasMyDayToggleIcon && howWasMyDayToggleIcon.textContent === '▲'){
-        howWasMyDayContent.style.display = 'block';
-        renderHowWasMyDayChart(); // Render if visible
-    } else if (howWasMyDayContent){
-        howWasMyDayContent.style.display = 'none';
+        return;
     }
-                                const dailyGraphContent = document.getElementById('dailyExpensesGraphContainer');
-                                const dailyGraphToggleIcon = document.getElementById('dailyExpensesGraphToggleIcon');
-                                if (dailyGraphContent && dailyGraphToggleIcon && dailyGraphToggleIcon.textContent === '▲'){
-                                    dailyGraphContent.style.display = 'block';
-                                    renderDailyBarChart(); 
-                                } else if (dailyGraphContent){
-                                    dailyGraphContent.style.display = 'none';
-                                }
-                            } else if (wrapperId === 'settingsSectionWrapper') {
-                                const faqContent = document.getElementById('faqContentSettings');
-                                const faqToggleIcon = document.getElementById('faqToggleIconSettings');
-                                if (faqContent && faqToggleIcon && faqToggleIcon.textContent === '▲') { 
-                                    faqContent.style.display = 'block';
-                                } else if (faqContent) {
-                                    faqContent.style.display = 'none';
-                                }
+
+    if (sectionId === 'create-fund-section') {
+        openCreateFundModal();
+        return;
+    }
+
+    const newSectionAnimationEnd = () => {
+        // ... (existing content of newSectionAnimationEnd callback which handles displaying section contents)
+        // This callback should remain as is, managing the display of #dashboardSectionWrapper, #historySectionWrapper etc.
+        // We will manage the FAB outside this specific animation callback for simplicity,
+        // though it could also be done here.
+        newSectionWrapper.classList.remove('fade-in-start');
+        sectionOrder.forEach(wrapperId => {
+            const isCurrentNewSection = (wrapperId === newSectionWrapperId);
+            const sectionWrapperElement = document.getElementById(wrapperId);
+
+            if (!sectionWrapperElement) return;
+
+            if (wrapperId === 'dashboardSectionWrapper') { 
+                const dashboardElementsToToggle = [ 
+                    '.total-balance', '#dashboardGaugesContainer', '#toggleLogTransactionBtn', 
+                    '#monthlyIncomeCard', '#expenseFundsCard', '#investmentFundsCard', 
+                    '#transferFundsCard' 
+                ]; 
+                dashboardElementsToToggle.forEach(selector => { 
+                    const el = sectionWrapperElement.querySelector(selector) || document.querySelector(selector); 
+                    if (el) { 
+                        if (isCurrentNewSection) { 
+                            el.style.display = (selector === '#dashboardGaugesContainer' ? 'flex' : 'block'); 
+                        } else { 
+                            el.style.display = 'none'; 
+                        }
+                    }
+                }); 
+                const currentDateDisplayCard = sectionWrapperElement.querySelector('#currentDateDisplay')?.closest('.card'); 
+                if (currentDateDisplayCard) { 
+                    currentDateDisplayCard.style.display = isCurrentNewSection ? 'block' : 'none'; 
+                }
+
+                const logTransactionCard = document.getElementById('logTransactionSectionCard'); 
+                if (logTransactionCard) {  
+                    if (isCurrentNewSection) { 
+                        logTransactionCard.style.display = '';  
+                    } else { 
+                        logTransactionCard.classList.remove('open');  
+                    }
+                }
+            } else { 
+                const mainContentId = wrapperId.replace('SectionWrapper', '-section'); 
+                const mainContentDiv = document.getElementById(mainContentId); 
+                if (mainContentDiv) { 
+                    mainContentDiv.style.display = isCurrentNewSection ? 'block' : 'none'; 
+                    if (isCurrentNewSection) { 
+                        if (wrapperId === 'historySectionWrapper') { 
+                            const historyContent = document.getElementById('history'); 
+                            const historyToggleIcon = document.getElementById('historyToggleIcon'); 
+                            if (historyContent && historyToggleIcon && historyToggleIcon.textContent === '▲') { 
+                                historyContent.style.display = 'block'; 
+                            } else if (historyContent) { 
+                                historyContent.style.display = 'none'; 
+                            }
+                            const howWasMyDayContent = document.getElementById('howWasMyDayGraphContainer'); 
+                            const howWasMyDayToggleIcon = document.getElementById('howWasMyDayGraphToggleIcon'); 
+                            if (howWasMyDayContent && howWasMyDayToggleIcon && howWasMyDayToggleIcon.textContent === '▲'){ 
+                                howWasMyDayContent.style.display = 'block'; 
+                                renderHowWasMyDayChart(); 
+                            } else if (howWasMyDayContent){ 
+                                howWasMyDayContent.style.display = 'none'; 
+                            }
+                            const dailyGraphContent = document.getElementById('dailyExpensesGraphContainer'); 
+                            const dailyGraphToggleIcon = document.getElementById('dailyExpensesGraphToggleIcon'); 
+                            if (dailyGraphContent && dailyGraphToggleIcon && dailyGraphToggleIcon.textContent === '▲'){ 
+                                dailyGraphContent.style.display = 'block'; 
+                                renderDailyBarChart();  
+                            } else if (dailyGraphContent){ 
+                                dailyGraphContent.style.display = 'none'; 
+                            }
+                        } else if (wrapperId === 'analyticsSectionWrapper' && isCurrentNewSection) { 
+                            const categoriesForPieChart = getCurrentMonthData().categories.filter(cat => !cat.isPersonal); 
+                            renderPieChart(categoriesForPieChart); 
+                        } else if (wrapperId === 'settingsSectionWrapper') { 
+                            const faqContent = document.getElementById('faqContentSettings'); 
+                            const faqToggleIcon = document.getElementById('faqToggleIconSettings'); 
+                            if (faqContent && faqToggleIcon && faqToggleIcon.textContent === '▲') {  
+                                faqContent.style.display = 'block'; 
+                            } else if (faqContent) { 
+                                faqContent.style.display = 'none'; 
                             }
                         }
                     }
                 }
+            }
        });
-            render();
-            newSectionWrapper.removeEventListener('animationend', newSectionAnimationEnd);
-        };
+        render(); // Existing render call
+        newSectionWrapper.removeEventListener('animationend', newSectionAnimationEnd);
+    };
 
-        if (oldSectionWrapper && oldSectionWrapper !== newSectionWrapper) {
-            oldSectionWrapper.classList.add('fade-out-start');
-            oldSectionWrapper.addEventListener('animationend', function handleOldSectionFadeOut() {
-                oldSectionWrapper.classList.remove('active');
-                oldSectionWrapper.classList.remove('fade-out-start');
-                newSectionWrapper.classList.add('active');
-                newSectionWrapper.classList.add('fade-in-start');
-                newSectionWrapper.addEventListener('animationend', newSectionAnimationEnd, { once: true });
-            }, { once: true });
-        } else {
+    if (oldSectionWrapper && oldSectionWrapper !== newSectionWrapper) {
+        oldSectionWrapper.classList.add('fade-out-start');
+        oldSectionWrapper.addEventListener('animationend', function handleOldSectionFadeOut() {
+            oldSectionWrapper.classList.remove('active');
+            oldSectionWrapper.classList.remove('fade-out-start');
             newSectionWrapper.classList.add('active');
             newSectionWrapper.classList.add('fade-in-start');
             newSectionWrapper.addEventListener('animationend', newSectionAnimationEnd, { once: true });
-        }
+        }, { once: true });
+    } else {
+        newSectionWrapper.classList.add('active');
+        newSectionWrapper.classList.add('fade-in-start');
+        newSectionWrapper.addEventListener('animationend', newSectionAnimationEnd, { once: true });
+    }
 
-        activeSectionWrapperId = newSectionWrapperId;
+    activeSectionWrapperId = newSectionWrapperId; // Active section is updated here
 
-        const navButtons = document.querySelectorAll('.bottom-nav button');
-        navButtons.forEach(button => button.classList.remove('active'));
-        const targetButtonId = `nav${sectionId.charAt(0).toUpperCase() + sectionId.slice(1).replace(/-section$/, 'Btn').replace(/-(\w)/g, (match, p1) => p1.toUpperCase())}`;
-        const targetButton = document.getElementById(targetButtonId);
-        if (targetButton) {
-            targetButton.classList.add('active');
+    // --- START: MODIFIED Daiko Insights FAB visibility logic ---
+    const daikoFab = document.getElementById('daikoInsightsFab');
+    if (daikoFab) {
+        const targetSectionsForDaikoFab = ['dashboardSectionWrapper', 'historySectionWrapper', 'analyticsSectionWrapper'];
+        if (targetSectionsForDaikoFab.includes(activeSectionWrapperId)) { // Check against the new activeSectionWrapperId
+            daikoFab.style.display = 'flex'; // Use 'flex' as per your FAB CSS
         } else {
-            const simpleTargetButtonId = `nav${sectionId.replace('-section', 'Btn').replace(/(\w)(\w*)/g, (g0,g1,g2) => g1.toUpperCase() + g2.toLowerCase())}`;
-            const simpleTargetButton = document.getElementById(simpleTargetButtonId);
-            if(simpleTargetButton) simpleTargetButton.classList.add('active');
+            daikoFab.style.display = 'none';
         }
     }
+    // --- END: MODIFIED Daiko Insights FAB visibility logic ---
+
+    const navButtons = document.querySelectorAll('.bottom-nav button');
+    // ... (rest of your nav button update logic) ...
+    navButtons.forEach(button => button.classList.remove('active')); 
+    const targetButtonId = `nav${sectionId.charAt(0).toUpperCase() + sectionId.slice(1).replace(/-section$/, 'Btn').replace(/-(\w)/g, (match, p1) => p1.toUpperCase())}`; 
+    const targetButton = document.getElementById(targetButtonId); 
+    if (targetButton) { 
+        targetButton.classList.add('active'); 
+    } else { 
+        const simpleTargetButtonId = `nav${sectionId.replace('-section', 'Btn').replace(/(\w)(\w*)/g, (g0,g1,g2) => g1.toUpperCase() + g2.toLowerCase())}`; 
+        const simpleTargetButton = document.getElementById(simpleTargetButtonId); 
+        if(simpleTargetButton) simpleTargetButton.classList.add('active'); 
+    }
+}
+
 
 
     function toggleDarkMode() {
@@ -4636,6 +5117,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize Auth UI visibility based on the loaded mode and (initially null) currentUser
     // onAuthStateChanged will fire shortly if there's a persisted Firebase session and update currentUser
     updateAuthUIVisibility();
+    
+
+const initialDaikoFab = document.getElementById('daikoInsightsFab');
+if (initialDaikoFab) {
+    const targetSectionsForDaikoFab = ['dashboardSectionWrapper', 'historySectionWrapper', 'analyticsSectionWrapper'];
+    if (targetSectionsForDaikoFab.includes(activeSectionWrapperId)) { // activeSectionWrapperId is 'dashboardSectionWrapper' on load
+        initialDaikoFab.style.display = 'flex'; 
+    } else {
+        initialDaikoFab.style.display = 'none';
+    }
+}
+
 
     // --- Your other existing DOMContentLoaded initializations ---
     const ttsToggle = document.getElementById('ttsToggle');
