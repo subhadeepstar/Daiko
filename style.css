@@ -425,6 +425,54 @@ button,
                 visibility 0s linear 0s;
 }
 
+
+/* Add to style.css */
+#daikoInsightsContent h5 {
+    font-size: 1.05em; /* Adjusted for slightly less emphasis than modal title */
+    color: var(--primary-color);
+    margin-top: 18px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 6px;
+}
+#daikoInsightsContent h5:first-child {
+    margin-top: 0;
+}
+#daikoInsightsContent p, 
+#daikoInsightsContent li {
+    margin-bottom: 10px;
+    font-size: 0.95em;
+}
+#daikoInsightsContent ul {
+    padding-left: 20px;
+    list-style-type: disc;
+    margin-top: 5px; /* Add some space before lists */
+}
+#daikoInsightsContent .insight-section {
+    margin-bottom: 22px; /* Increased spacing between sections */
+}
+#daikoInsightsContent .insight-section:last-child {
+    margin-bottom: 0;
+}
+#daikoInsightsContent strong { /* Already in your CSS, just for reference */
+    font-weight: 600;
+    color: var(--text-color); 
+}
+#daikoInsightsContent .important-financial-rule {
+    background-color: rgba(var(--primary-color-rgb), 0.08); /* Subtle highlight */
+    padding: 12px;
+    border-radius: 8px;
+    margin-top: 10px;
+    border-left: 3px solid var(--primary-color);
+}
+#daikoInsightsContent .disclaimer {
+    font-style: italic;
+    font-size: 0.8em; /* Slightly smaller */
+    color: var(--text-secondary-color);
+    margin-top: 12px;
+}
+
+
 /* --- Full Height Layout for Swipe (from previous fix) --- */
 #mainContentWrapper {
   position: relative;
@@ -447,7 +495,71 @@ button,
   animation: fadeInEffect 0.3s ease-out forwards;
 }
 
+.daiko-insights-fab {
+  position: fixed;
+  /* width: 50px; */ /* Remove fixed width */
+  width: auto;     /* Allow button to size to its content */
+  min-width: 50px; /* Ensure it's not too small if text were very short */
+  height: 50px;
+  border-radius: 25px; /* This will make it pill-shaped */
+  /* font-size: 24px; */ /* Remove general font-size, set for text and icon separately */
+  box-shadow: var(--shadow-depth-button);
+  transition: background-color 0.3s, transform 0.2s ease-in-out, box-shadow 0.2s ease;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: none;
+  z-index: 900;
+  cursor: pointer;
+  bottom: 140px; 
+  left: 15px;   
+  padding: 0 18px; /* Add horizontal padding for text */
 
+  background-color: #B4F000; /* Using your --accent-color (Neon Lime) for lime yellow */
+  /* OR a specific lime: background-color: lime; */
+  /* OR background-color: #BFFF00; /* Bright Lime */
+
+  font-family: 'Poppins', 'Roboto', sans-serif; /* Ensure Poppins is used */
+  font-size: 13px;       /* Font size for the text "Get insights with Daiko" */
+  font-weight: 500;
+  color: #1F2937; /* Deep Charcoal Gray text - good contrast on bright lime/yellow */
+  gap: 8px; /* Adds space between the text and the icon */
+}
+
+.daiko-insights-fab .fab-icon {
+    font-size: 18px; /* Slightly larger size for the bulb icon */
+    line-height: 1; /* Helps with vertical alignment if needed */
+}
+
+/* Ensure text color for dark mode provides good contrast with lime yellow */
+body.dark-mode .daiko-insights-fab {
+    color: #1C3327; /* Dark green text, also good contrast on lime yellow */
+    /* background-color: #D8FA94; /* If you want a slightly different lime for dark mode (your dark --accent-color) */
+}
+
+.daiko-insights-fab:hover {
+  background-position: right center; /* If using gradient, else this has no effect */
+  /* For solid color, you might want a slightly darker shade on hover */
+  /* background-color: #A8E000; */ /* Example: darker lime on hover */
+  transform: translateY(-2px) scale(1.02); /* Keep the nice hover effect */
+  /* Add glow for lime if desired, similar to other button glows */
+  box-shadow: 0 0 6px 1px var(--accent-color), /* Using accent for glow */
+              0 0 12px 2px rgba(180, 240, 0, 0.5), /* Softer Neon Lime (from your light vars) */
+              var(--shadow-depth-button);
+}
+body.dark-mode .daiko-insights-fab:hover {
+    /* background-color: #C7E883; */ /* Example: darker lime for dark mode hover */
+    box-shadow: 0 0 6px 1px var(--accent-color), /* Using accent for glow (dark mode version) */
+              0 0 12px 2px rgba(216, 250, 148, 0.5), /* Softer Soft Lime Yellow (from your dark vars) */
+              var(--shadow-depth-button);
+}
+
+.daiko-insights-fab:active {
+  transform: scale(0.97) translateY(0px);
+  box-shadow: var(--shadow-depth-button-pressed);
+  /* For solid color, you might want an even darker shade on active */
+  /* background-color: #9CD000; */ /* Example: active lime */
+}
 /* --- Chat Container Positioning --- */
 .chat-container {
     position: fixed;
@@ -471,7 +583,26 @@ button,
     visibility: hidden;
     transition: transform 0.3s ease-out, opacity 0.3s ease-out, visibility 0.3s ease-out;
 }
+/* Style for the new TTS toggle button in Daiko Insights Modal */
+#toggleDaikoSpeakBtn {
+    background-image: none; /* Override general button gradient if needed */
+    background-color: var(--card-bg);
+    color: var(--primary-color);
+    border: 1px solid var(--primary-color);
+    box-shadow: none; /* Remove general button shadow if too much */
+    margin-right: 10px; /* Space between buttons */
+}
 
+#toggleDaikoSpeakBtn:hover {
+    background-color: rgba(var(--primary-color-rgb), 0.1);
+    transform: none; /* Optional: simplify hover for small icon button */
+    box-shadow: none;
+}
+
+#toggleDaikoSpeakBtn.muted {
+    color: var(--text-secondary-color);
+    border-color: var(--text-secondary-color);
+}
 
 /* --- Remaining Original CSS --- */
 .notification-badge { background-color: var(--danger-color); color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.7em; font-weight: bold; display: none; }
