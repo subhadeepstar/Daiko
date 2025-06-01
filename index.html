@@ -115,21 +115,21 @@
 
     
 <div class="card no-hover-effect" id="how-was-my-day-graph-section">
-        <h4 style="cursor:pointer" onclick="toggleHowWasMyDayGraph()" aria-label="Toggle How was my day Graph">How was my day? <span id="howWasMyDayGraphToggleIcon">▼</span></h4>
+        <h4 style="cursor:pointer" onclick="toggleHowWasMyDayGraph()" aria-label="Toggle How was my day Graph">How was my day? <span id="howWasMyDayGraphToggleIcon">🔽</span></h4>
         <div id="howWasMyDayGraphContainer" style="display:none; padding-top: 10px;">
             <canvas id="howWasMyDayBarChart" height="200"></canvas>
         </div>
     </div>
 
 <div class="card no-hover-effect" id="daily-expenses-graph-section">
-        <h4 style="cursor:pointer" onclick="toggleDailyExpensesGraph()" aria-label="Toggle Daily Expenses Graph">Daywise Expenses <span id="dailyExpensesGraphToggleIcon">▼</span></h4>
+        <h4 style="cursor:pointer" onclick="toggleDailyExpensesGraph()" aria-label="Toggle Daily Expenses Graph">Daywise Expenses <span id="dailyExpensesGraphToggleIcon">🔽</span></h4>
         <div id="dailyExpensesGraphContainer" style="display:none; padding-top: 10px;">
             <canvas id="dailyBarChart" height="200"></canvas>
         </div>
     </div>
 
     <div class="card no-hover-effect" id="history-section">
-        <h4 style="cursor:pointer" onclick="toggleHistory()" aria-label="Toggle Transaction History">Transaction History <span id="historyToggleIcon">▼</span></h4>
+        <h4 style="cursor:pointer" onclick="toggleHistory()" aria-label="Toggle Transaction History">Transaction History <span id="historyToggleIcon">🔽</span></h4>
         <div id="history" style="display:none;">
             <table id="historyTable">
                 <thead>
@@ -183,6 +183,17 @@
                     </label>
                     <span>🌙 Dark Mode</span>
                 </div>
+            </div>
+            <div class="settings-group" id="lightModePaletteGroup">
+                <label for="lightModePaletteSelect">Light Mode Palette:</label>
+                <select id="lightModePaletteSelect">
+                    <option value="default">Default (Lavender Glow)</option>
+                    <option value="ocean">Ocean Breeze</option>
+                    <option value="forest">Forest Calm</option>
+                </select>
+                <p style="font-size:0.8em; opacity:0.7; margin-top:5px;">
+                    Choose a visual style for the light theme. This is active when Dark Mode is off.
+                </p>
             </div>
             <div class="settings-group">
                 <label for="timezoneSelect">Timezone:</label>
@@ -285,7 +296,7 @@
             </div>
 
             <div class="settings-group">
-                <h5 style="cursor:pointer" onclick="toggleFaqSectionSettings()" aria-label="Toggle FAQ Section">Frequently Asked Questions <span id="faqToggleIconSettings">▼</span></h5>
+                <h5 style="cursor:pointer" onclick="toggleFaqSectionSettings()" aria-label="Toggle FAQ Section">Frequently Asked Questions <span id="faqToggleIconSettings">🔽</span></h5>
                 <div id="faqContentSettings" style="display:none;">
                     </div>
             </div>
@@ -308,7 +319,7 @@
     </div> <div id="faqContent" style="display:none;">
     <div class="faq-item">
         <div class="faq-question" onclick="toggleFaqAnswer(this)">
-            What is an "Expense Fund"? <span class="faq-toggle-icon">▼</span>
+            What is an "Expense Fund"? <span class="faq-toggle-icon">🔽</span>
         </div>
         <div class="faq-answer">
             Expense Funds are categories you create to track your spending on specific items like "Groceries", "Utilities", "Entertainment", etc.
@@ -316,7 +327,7 @@
     </div>
     <div class="faq-item">
         <div class="faq-question" onclick="toggleFaqAnswer(this)">
-            What is an "Investment Fund"? <span class="faq-toggle-icon">▼</span>
+            What is an "Investment Fund"? <span class="faq-toggle-icon">🔽</span>
         </div>
         <div class="faq-answer">
             Investment Funds are for tracking money allocated towards savings, stocks, mutual funds, or any other investment.
@@ -324,7 +335,7 @@
     </div>
     <div class="faq-item">
         <div class="faq-question" onclick="toggleFaqAnswer(this)">
-            How does "Auto-Deduct" work? <span class="faq-toggle-icon">▼</span>
+            How does "Auto-Deduct" work? <span class="faq-toggle-icon">🔽</span>
         </div>
         <div class="faq-answer">
             "Auto-Deduct" is for fixed recurring payments like EMIs or monthly investments. If checked, the specified amount is automatically deducted at the start of each new month. You can also specify a "Due Day" for informational purposes.
@@ -332,7 +343,7 @@
     </div>
     <div class="faq-item">
         <div class="faq-question" onclick="toggleFaqAnswer(this)">
-            How do I revert a transaction? <span class="faq-toggle-icon">▼</span>
+            How do I revert a transaction? <span class="faq-toggle-icon">🔽</span>
         </div>
         <div class="faq-answer">
             You can use the "Revert Last Transaction" button in the "Log Transaction" section to undo your most recent expense or fund transfer.
@@ -340,7 +351,7 @@
     </div>
     <div class="faq-item">
         <div class="faq-question" onclick="toggleFaqAnswer(this)">
-            Can I change my currency? <span class="faq-toggle-icon">▼</span>
+            Can I change my currency? <span class="faq-toggle-icon">🔽</span>
         </div>
         <div class="faq-answer">
             Yes, you can change your preferred currency (USD, EUR, INR) in the "Settings" section.
@@ -355,9 +366,12 @@
       </div>
   </div>
 
-  <button class="fab" onclick="openCreateFundModal()" aria-label="Add New Fund">+</button>
-  <button class="chatbot-fab" id="chatbotFab" aria-label="Open Chatbot">🤖</button>
-  <nav class="bottom-nav">
+<button class="fab" onclick="openCreateFundModal()" aria-label="Add New Fund">+</button>
+    <button class="daiko-insights-fab" id="daikoInsightsFab" onclick="openDaikoInsightsModal()" aria-label="Get insights with Daiko" style="display: none;">
+        💡
+    </button>
+</button><button class="chatbot-fab" id="chatbotFab" aria-label="Open Chatbot">🤖</button>
+<nav class="bottom-nav">
     <button onclick="scrollToSection('dashboard-section')" class="active" id="navDashboardBtn" aria-label="Go to Dashboard">Dashboard</button>
     <button onclick="scrollToSection('history-section')" id="navHistoryBtn" aria-label="Go to History">History</button>
     <button onclick="scrollToSection('analytics-section')" id="navAnalyticsBtn" aria-label="Go to Analytics">Analytics</button>
@@ -464,7 +478,21 @@
       </div>
     </div>
   </div>
-  <div id="toastNotification" class="toast-notification"></div>
+  
+    <div id="daikoInsightsModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 450px;">
+            <h3 id="daikoInsightsModalTitle">Daiko's Financial Insights</h3>
+            <div id="daikoInsightsContent" style="max-height: 65vh; overflow-y: auto; text-align: left; padding-top:10px; font-size: 0.9em; line-height: 1.6;">
+                <p>Let me take a look at your finances...</p>
+            </div>
+            <div class="modal-buttons" style="margin-top:20px; display: flex; justify-content: space-between; align-items: center;">
+                <button id="toggleDaikoSpeakBtn" onclick="toggleDaikoInsightSpeech()" class="secondary" style="width: auto; padding: 8px 12px; font-size: 18px;">🔊</button>
+                <button onclick="closeDaikoInsightsModal()" class="secondary" style="min-width: 100px;">Got it!</button>
+            </div>
+        </div>
+    </div>
+
+<div id="toastNotification" class="toast-notification"></div>
 <script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore-compat.js"></script>
