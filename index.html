@@ -3,22 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DaikuFi</title>
-  <meta name="description" content="Track your monthly budget, income and expenses smartly with DaikuFi.">
-  <meta name="theme-color" content="#121212">
-  <link rel="manifest" href="/manifest.json">
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://unpkg.com/ml5@latest/dist/ml5.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
-  <script src="https://unpkg.com/html5-qrcode@2.0.9/dist/html5-qrcode.min.js"></script>
-</head>
+  <title>DaikuFi</title> <meta name="description" content="Track your monthly budget, income and expenses smartly with DaikuFi."> <meta name="theme-color" content="#121212"> <link rel="manifest" href="/manifest.json"> <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet"> <link rel="stylesheet" href="style.css"> <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <script src="https://unpkg.com/ml5@latest/dist/ml5.min.js"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script> <script src="https://unpkg.com/html5-qrcode@2.0.9/dist/html5-qrcode.min.js"></script> </head>
 <body>
-  <div id="mainContentWrapper" style="position: relative; overflow: hidden;">
-    <div id="dashboardSectionWrapper" class="app-section active">
-        <h3 id="dashboard-section" style="text-align: center; color: var(--primary-color); margin-top: 10px; margin-bottom: 20px;"><span id="welcomeAvatar" class="profile-avatar" style="font-size: 1em; margin-right: 5px;"></span><span id="welcomeMessage"></span></h3>
+  <main id="mainContentWrapper"> <section id="dashboardSectionWrapper" class="app-section active"> <h3 id="dashboard-section"><span id="welcomeAvatar" class="profile-avatar"></span><span id="welcomeMessage"></span></h3>
         <div class="total-balance">
             Total Remaining Balance: <span id="currencySymbolTotalBalance">₹</span><span id="totalBalance">0.00</span>
         </div>
@@ -26,38 +13,36 @@
             <div class="gauge-widget">
             <canvas id="investmentGaugeCanvas"></canvas>
             <p class="gauge-label">Investment</p>
-            <p id="investmentPercentageText" class="gauge-percentage" style="color: var(--investment-gauge-color);">0%</p>
+            <p id="investmentPercentageText" class="gauge-percentage">0%</p>
             </div>
             <div class="gauge-widget">
             <canvas id="expenseGaugeCanvas"></canvas>
             <p class="gauge-label">Manual Expenses</p>
-            <p id="expensePercentageText" class="gauge-percentage" style="color: var(--expense-gauge-color);">0%</p>
+            <p id="expensePercentageText" class="gauge-percentage">0%</p>
             </div>
             <div class="gauge-widget">
             <canvas id="loanGaugeCanvas"></canvas>
             <p class="gauge-label">Loan/EMI</p>
-            <p id="loanPercentageText" class="gauge-percentage" style="color: var(--loan-gauge-color);">0%</p>
+            <p id="loanPercentageText" class="gauge-percentage">0%</p>
             </div>
         </div>
 
-        <button id="toggleLogTransactionBtn" class="primary" style="width: 80%; display: block; margin: 20px auto; padding: 15px; font-size: 1.1em;">
-            <span id="logTransactionBtnIcon" style="margin-right: 8px;">₹</span>Log New Transaction
+        <button id="toggleLogTransactionBtn" class="primary">
+            <span id="logTransactionBtnIcon">₹</span>Log New Transaction
         </button>
 
-        <div class="card no-hover-effect" id="logTransactionSectionCard">
-
-            <h4>Log Transaction</h4>
+        <div class="card no-hover-effect" id="logTransactionSectionCard"> <h4>Log Transaction</h4>
             <select id="payCategory" aria-label="Select Category for Payment"></select>
             <input type="number" id="payAmount" placeholder="Enter amount" aria-label="Payment Amount" />
 
-            <div class="payment-method-options" style="margin-top: 10px; margin-bottom: 10px; display: flex; justify-content: space-around; align-items: center;">
-                <label style="cursor:pointer;">
+            <div class="payment-method-options">
+                <label class="clickable-label">
                     <input type="radio" name="paymentMethod" value="cash" checked> Cash
                 </label>
-                <label style="cursor:pointer;">
+                <label class="clickable-label">
                     <input type="radio" name="paymentMethod" value="scanAndPay"> Scan & Pay (QR)
                 </label>
-                <label style="cursor:pointer;">
+                <label class="clickable-label">
                     <input type="radio" name="paymentMethod" value="payViaUpiApp"> Pay via App
                 </label>
             </div>
@@ -70,8 +55,7 @@
                 <button onclick="changeMonth(1)" class="secondary" aria-label="Next Month">Next Month</button>
             </div>
             <div class="month-actions">
-                <button onclick="manualCopyFundsFromPreviousMonth()" class="secondary" id="copyFundsBtn" style="display:none;" aria-label="Copy Funds from Previous Month">Copy Last Month's Funds</button>
-            </div>
+                <button onclick="manualCopyFundsFromPreviousMonth()" class="secondary" id="copyFundsBtn" style="display:none;" aria-label="Copy Funds from Previous Month">Copy Last Month's Funds</button> </div>
         </div>
 
         <div class="card no-hover-effect" id="monthlyIncomeCard"> <h4>Monthly Income & Expenses</h4>
@@ -90,9 +74,9 @@
         </div>
 
         <div class="card no-hover-effect" id="expenseFundsCard"> <h4>Expense Funds</h4>
-            <h5 style="text-align: center; color: var(--primary-color); margin-top: 20px;">Loan & EMI Funds</h5>
+            <h5 class="centered-primary-subheading">Loan & EMI Funds</h5>
             <div id="loanEmiFunds" class="fund-grid-container"></div>
-            <h5 style="text-align: center; color: var(--primary-color); margin-top: 20px;">Daily Expense Funds</h5>
+            <h5 class="centered-primary-subheading">Daily Expense Funds</h5>
             <div id="dailyExpenseFunds" class="fund-grid-container"></div>
         </div>
 
@@ -106,76 +90,43 @@
             <input type="number" id="transferAmount" placeholder="Amount to transfer" aria-label="Transfer Amount" />
             <button onclick="transferFunds()" class="primary" aria-label="Transfer Funds">Transfer Funds</button>
         </div>
-    </div>
-    
-
-
-
-<div id="historySectionWrapper" class="app-section" style="display:none;">
-
-    
-<div class="card no-hover-effect" id="how-was-my-day-graph-section">
-        <h4 style="cursor:pointer" onclick="toggleHowWasMyDayGraph()" aria-label="Toggle How was my day Graph">How was my day? <span id="howWasMyDayGraphToggleIcon">🔽</span></h4>
-        <div id="howWasMyDayGraphContainer" style="display:none; padding-top: 10px;">
-            <canvas id="howWasMyDayBarChart" height="200"></canvas>
+    </section>
+    <section id="historySectionWrapper" class="app-section"> <div class="card no-hover-effect" id="how-was-my-day-graph-section"> <h4 class="toggle-header" onclick="toggleHowWasMyDayGraph()" aria-label="Toggle How was my day Graph">How was my day? <span id="howWasMyDayGraphToggleIcon">🔽</span></h4> <div id="howWasMyDayGraphContainer" style="display:none;"> <canvas id="howWasMyDayBarChart" height="200"></canvas> </div>
+      </div> <div class="card no-hover-effect" id="daily-expenses-graph-section">
+        <h4 class="toggle-header" onclick="toggleDailyExpensesGraph()" aria-label="Toggle Daily Expenses Graph">Daywise Expenses <span id="dailyExpensesGraphToggleIcon">🔽</span></h4>
+        <div id="dailyExpensesGraphContainer" style="display:none;"> <canvas id="dailyBarChart" height="200"></canvas>
         </div>
-    </div>
+      </div>
 
-<div class="card no-hover-effect" id="daily-expenses-graph-section">
-        <h4 style="cursor:pointer" onclick="toggleDailyExpensesGraph()" aria-label="Toggle Daily Expenses Graph">Daywise Expenses <span id="dailyExpensesGraphToggleIcon">🔽</span></h4>
-        <div id="dailyExpensesGraphContainer" style="display:none; padding-top: 10px;">
-            <canvas id="dailyBarChart" height="200"></canvas>
-        </div>
-    </div>
-
-    <div class="card no-hover-effect" id="history-section">
-        <h4 style="cursor:pointer" onclick="toggleHistory()" aria-label="Toggle Transaction History">Transaction History <span id="historyToggleIcon">🔽</span></h4>
-        <div id="history" style="display:none;">
-            <table id="historyTable">
+      <div class="card no-hover-effect" id="history-section">
+        <h4 class="toggle-header" onclick="toggleHistory()" aria-label="Toggle Transaction History">Transaction History <span id="historyToggleIcon">🔽</span></h4>
+        <div id="history" style="display:none;"> <table id="historyTable">
                 <thead>
                     <tr>
-                        <th>Date</th>        <th>Description</th> <th>Amount</th>      <th>Type</th>        </tr>
-                </thead>
+                        <th>Date</th><th>Description</th> <th>Amount</th>      <th>Type</th> </tr> </thead>
                 <tbody>
-                    </tbody>
+                </tbody>
             </table>
         </div>
-    </div>
-
-</div>  
-
-
-     
-    <div id="analyticsSectionWrapper" class="app-section" style="display:none;">
-        <div class="card no-hover-effect" id="analytics-section">
+      </div>
+    </section>
+    <section id="analyticsSectionWrapper" class="app-section"> <div class="card no-hover-effect" id="analytics-section">
             <h4>Expense Distribution</h4>
             <div id="expenseSummaryText" class="expense-summary-text"></div>
             <canvas id="expensePieChart"></canvas>
           
             <h4>Statement Download</h4>
 
-<div class="settings-group" style="border-bottom: none; margin-bottom: 5px;"> <label for="pdfStartDate" style="font-size:0.9em;">Start Date:</label>
-    <input type="date" id="pdfStartDate" aria-label="PDF Export Start Date" style="margin-bottom:5px;">
-
-    <label for="pdfEndDate" style="font-size:0.9em;">End Date:</label>
-    <input type="date" id="pdfEndDate" aria-label="PDF Export End Date">
-</div>
-<button onclick="exportToPdfWithDateRange()" class="primary" style="margin-top: 15px;" aria-label="Download Statement for Selected Range">Download Statement (Date Range)</button>
-
-<p style="text-align:center; margin:10px 0; font-size:0.9em;">OR</p>
-
-<button onclick="exportToPdf()" class="secondary" aria-label="Download Current Month Statement">Download Current Month Statement</button> 
-
-
+            <div class="settings-group pdf-date-range-group"> <label for="pdfStartDate" class="pdf-date-label">Start Date:</label> <input type="date" id="pdfStartDate" aria-label="PDF Export Start Date" class="pdf-date-input"> <label for="pdfEndDate" class="pdf-date-label">End Date:</label> <input type="date" id="pdfEndDate" aria-label="PDF Export End Date" class="pdf-date-input"> </div>
+            <button onclick="exportToPdfWithDateRange()" class="primary mt-15" aria-label="Download Statement for Selected Range">Download Statement (Date Range)</button> <p class="text-center-small-margin">OR</p> <button onclick="exportToPdf()" class="secondary" aria-label="Download Current Month Statement">Download Current Month Statement</button> 
         </div>
-    </div>
-    <div id="settingsSectionWrapper" class="app-section" style="display:none;">
-        <div class="card no-hover-effect" id="settings-section">
+    </section>
+    <section id="settingsSectionWrapper" class="app-section"> <div class="card no-hover-effect" id="settings-section">
             <h4>Settings</h4>
 
             <div class="settings-group">
                 <label for="darkModeToggleSwitchSettings">Theme:</label>
-                <div class="dark-mode-toggle" style="justify-content: flex-start; margin-bottom: 0;">
+                <div class="dark-mode-toggle">
                     <span>🌞 Light Mode</span>
                     <label class="switch">
                     <input type="checkbox" id="darkModeToggleSwitchSettings" aria-label="Toggle dark mode">
@@ -184,21 +135,7 @@
                     <span>🌙 Dark Mode</span>
                 </div>
             </div>
-                  <div class="settings-group">
-                <label for="timezoneSelect">Timezone:</label>
-                <select id="timezoneSelect" onchange="updateUserTimezone()">
-                    <option value="Etc/UTC">UTC</option>
-                    <option value="America/New_York">America/New_York (ET)</option>
-                    <option value="Europe/London">Europe/London (GMT/BST)</option>
-                    <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-                    <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
-                    <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
-                    </select>
-                <p style="font-size:0.8em; opacity:0.7; margin-top:5px;">
-                    This helps display dates and times correctly. Your browser's current timezone is a good default.
-                </p>
-            </div>
-            <div class="settings-group">
+            <div class="settings-group" id="lightModePaletteGroup"> <label for="lightModePaletteSelect">Light Mode Palette:</label> <select id="lightModePaletteSelect"> <option value="default">Default (Lavender Glow)</option> <option value="ocean">Ocean Breeze</option> <option value="forest">Forest Calm</option> </select> <p class="settings-note-text"> Choose a visual style for the light theme. This is active when Dark Mode is off. </p> </div> <div class="settings-group"> <label for="timezoneSelect">Timezone:</label> <select id="timezoneSelect" onchange="updateUserTimezone()"> <option value="Etc/UTC">UTC</option> <option value="America/New_York">America/New_York (ET)</option> <option value="Europe/London">Europe/London (GMT/BST)</option> <option value="Asia/Kolkata">Asia/Kolkata (IST)</option> <option value="Asia/Tokyo">Asia/Tokyo (JST)</option> <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option> </select> <p class="settings-note-text"> This helps display dates and times correctly. Your browser's current timezone is a good default. </p> </div> <div class="settings-group">
                 <label for="currencySelect">Currency:</label>
                 <select id="currencySelect" onchange="updateCurrency()">
                     <option value="INR">₹ Indian Rupee (INR)</option>
@@ -213,33 +150,13 @@
                     <option value="GPay">GPay</option>
                     <option value="PhonePe">PhonePe</option>
                     <option value="AmazonPay">Amazon Pay</option>
-                    </select>
-                <p style="font-size:0.8em; opacity:0.7; margin-top:5px;">Note: For 'Scan & Pay', your OS will choose the app for UPI links.</p>
+                </select>
+                <p class="settings-note-text">Note: For 'Scan & Pay', your OS will choose the app for UPI links.</p>
             </div>
              
-            <div class="settings-group">
-            <h5>Budget Mode</h5>
-            <div class="radio-group" id="budgetModeSelector">
-                <label style="display: block; margin-bottom: 8px;">
-                    <input type="radio" name="budgetModeOption" value="individual" onchange="handleModeChangeAttempt('individual')">
-                    Individual Planner (Offline, Local Data)
-                </label>
-                <label style="display: block;">
-                    <input type="radio" name="budgetModeOption" value="shared" onchange="handleModeChangeAttempt('shared')">
-                    Shared Planner (Online Sync with Login)
-                </label>
-            </div>
-            <p style="font-size:0.8em; opacity:0.7; margin-top:5px;">
-                Switching modes will involve data handling choices.
-            </p>
-        </div>
-            
-
-
-             <div class="settings-group">
+            <div class="settings-group"> <h5>Budget Mode</h5> <div class="radio-group" id="budgetModeSelector"> <label class="radio-label-block"> <input type="radio" name="budgetModeOption" value="individual" onchange="handleModeChangeAttempt('individual')"> Individual Planner (Offline, Local Data) </label> <label class="radio-label-block"> <input type="radio" name="budgetModeOption" value="shared" onchange="handleModeChangeAttempt('shared')"> Shared Planner (Online Sync with Login) </label> </div> <p class="settings-note-text"> Switching modes will involve data handling choices. </p> </div> <div class="settings-group">
                 <h5>User Authentication & Profile</h5>
-
-                <div id="authStatusDisplay" style="text-align: center; margin-bottom: 15px; font-weight: 500;">
+                <div id="authStatusDisplay">
                     Not logged in
                 </div>
 
@@ -247,106 +164,372 @@
                     <label for="userEmailInput">Authentication Email:</label>
                     <input type="email" id="userEmailInput" placeholder="Enter your email for login/signup" aria-label="Authentication Email" />
 
-                    <label for="userPasswordInput" style="margin-top: 10px;">Password:</label>
+                    <label for="userPasswordInput" class="label-mt-10">Password:</label>
                     <div class="password-input-container">
                         <input type="password" id="userPasswordInput" placeholder="Enter your password" aria-label="Authentication Password" />
                         <span id="togglePasswordVisibility" class="toggle-password-visibility" role="button" tabindex="0" aria-label="Toggle password visibility">👁️</span>
                     </div>
 
-                    <div style="margin-top: 20px;"> <button id="loginButton" class="primary" onclick="handleLoginAttempt()" style="width: 48%; display: inline-block; margin-right: 2%;">Login</button>
-                        <button id="signUpButton" class="secondary" onclick="handleSignUpAttempt()" style="width: 48%; display: inline-block; float: right;">Sign Up</button>
+                    <div class="auth-buttons-wrapper"> <button id="loginButton" class="primary button-half login" onclick="handleLoginAttempt()">Login</button>
+                        <button id="signUpButton" class="secondary button-half signup" onclick="handleSignUpAttempt()">Sign Up</button>
                     </div>
                 </div>
 
-                <button id="logoutButton" class="danger" onclick="handleLogoutAttempt()" style="display:none; margin-top: 20px; width: 100%;">Logout</button>
-
-                <h5 style="margin-top: 30px; border-top: 1px dashed var(--border-color); padding-top: 20px;">Profile Customization</h5>
+                <button id="logoutButton" class="danger" onclick="handleLogoutAttempt()" style="display:none;">Logout</button> <h5 class="section-divider-heading">Profile Customization</h5>
                 <div class="profile-display">
                     <span id="profileAvatarDisplay" class="profile-avatar">👋</span>
                     <div id="profileNameDisplay" class="profile-name">Guest</div>
-                    <div id="profileEmailDisplay" class="profile-email"></div> </div>
+                    <div id="profileEmailDisplay" class="profile-email"></div> 
+                </div>
 
                 <label for="userNameInput">Display Name:</label>
                 <input type="text" id="userNameInput" placeholder="Enter your display name" onkeyup="updateUserProfile()" aria-label="User Display Name" />
 
                 <label>Choose Avatar:</label>
                 <div class="avatar-options" id="avatarOptions">
-                    <span class="avatar-option" data-emoji="👋">👋</span>
+                    <span class="avatar-option" data-emoji="👱">👱</span>
                     <span class="avatar-option" data-emoji="🧑">🧑</span>
                     <span class="avatar-option" data-emoji="👩">👩</span>
                     <span class="avatar-option" data-emoji="😀">😀</span>
                     <span class="avatar-option" data-emoji="😎">😎</span>
-                    <span class="avatar-option" data-emoji="💡">💡</span>
-                    <span class="avatar-option" data-emoji="💼">💼</span>
-                    <span class="avatar-option" data-emoji="📚">📚</span>
-                    <span class="avatar-option" data-emoji="💰">💰</span>
-                    <span class="avatar-option" data-emoji="🏦">🏦</span>
-                    </div>
+                    <span class="avatar-option" data-emoji="👮">👮</span>
+                    <span class="avatar-option" data-emoji="👳">👳</span>
+                    <span class="avatar-option" data-emoji="👸">👸</span>
+                    <span class="avatar-option" data-emoji="🤴">🤴</span>
+                    <span class="avatar-option" data-emoji="🧔">🧔</span>
+                </div>
             </div>
 
             <div class="settings-group">
-                <h5 style="cursor:pointer" onclick="toggleFaqSectionSettings()" aria-label="Toggle FAQ Section">Frequently Asked Questions <span id="faqToggleIconSettings">🔽</span></h5>
-                <div id="faqContentSettings" style="display:none;">
-                    </div>
+                <h5 class="toggle-header" onclick="toggleFaqSectionSettings()" aria-label="Toggle FAQ Section">Frequently Asked Questions <span id="faqToggleIconSettings">🔽</span></h5>
+                <div id="faqContentSettings" style="display:none;"> </div>
             </div>
 
             <div class="settings-group">
                 <h5>About the App</h5>
                 <div class="about-app-content">
-                    <p>DaikuFi helps you track your monthly income and expenses efficiently. Manage various funds, log transactions, and visualize your spending with ease.</p>
-                    <p>Version: 1.0.0</p>
+                <p>© 2024-2025 DaikuFi Project. All Rights Reserved.</p>
+                    <p>DaikuFi helps you track your monthly income and expenses efficiently. Manage various funds, log transactions, and visualize your spending with ease.</p> <p>Version: 1.0.0</p>
                 </div>
             </div>
-
-            <div class="settings-group" style="text-align:center; margin-top: 20px;">
-                <h5 style="margin-bottom:10px;">Data Management</h5>
+            <div class="settings-group">
+                <h5>Legal</h5>
+                <ul class="legal-links-list" style="list-style: none; padding-left: 0;">
+                    <li style="margin-bottom: 8px;"><a href="privacy.html" class="settings-link">Privacy Policy</a></li>
+                    <li style="margin-bottom: 8px;"><a href="permissions.html" class="settings-link">Permissions Explained</a></li>
+                    <li><a href="terms.html" class="settings-link">Terms & Conditions</a></li>
+                </ul>
+            </div>
+            <div class="settings-group centered-settings-group">
+                <h5 class="heading-mb-10">Data Management</h5>
                 <button onclick="resetData()" class="danger" aria-label="Reset All Data for Current Month">Reset All Data (Current Month)</button>
             </div>
+        </div>
+    </section>
+    </main>
+<div id="faqContent" style="display:none;">
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            What is an "Expense Fund"? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            Think of Expense Funds as digital envelopes for different spending categories. You create them to keep track of how much you're spending on specific things. For example, you could create an "Expense Fund" for "Groceries," another for "Utilities," one for "Entertainment," and so on. This helps you see exactly where your money is going each month. You can create these from the Dashboard using the "+" floating action button.
+        </div>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            What is an "Investment Fund"? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            Investment Funds are designed to help you track money you're setting aside for growth or future goals. This could be for savings accounts, stocks, mutual funds, or any other type of investment. When you add money to an "Investment Fund," it helps you see how much you're actively putting towards building your wealth. Like Expense Funds, you can create these using the "+" button on the Dashboard.
+        </div>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            How does "Auto-Deduct" work? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            "Auto-Deduct" is a feature for funds that have fixed, recurring payments, like loan EMIs or monthly subscriptions (e.g., streaming services, gym memberships).
+            <ul>
+                <li>When you create a fund (using the "+" button on the Dashboard), you can mark it as "Auto-Deduct" and specify the amount.</li>
+                <li>When a new month begins in the app (either by you navigating to it or when the app automatically processes it on the 1st), this amount is considered automatically spent from that fund.</li>
+                <li>You can also set a "Due Day" (e.g., 5th, 15th) for these funds. This is mainly for your information and for DaikuFi to give you timely notifications about upcoming payments.</li>
+                <li>This helps ensure these regular, fixed expenses are always accounted for in your budget without you having to log them manually each time.</li>
+            </ul>
+        </div>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            How do I revert a transaction? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            Made a mistake? No problem! On the Dashboard, in the "Log New Transaction" card (you might need to tap the "Log New Transaction" button to show it), you'll find a "Revert Last Transaction" button. Clicking this will undo the very last expense you logged or the last fund transfer you made. The app will ask for confirmation before proceeding. This is handy for quick corrections.
+        </div>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            Can I change my currency? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            Yes, absolutely! You can personalize DaikuFi to use your preferred currency.
+            <ol>
+                <li>Go to the "Settings" section using the bottom navigation bar.</li>
+                <li>Look for the "Currency" option.</li>
+                <li>Tap on the dropdown menu (it shows options like ₹ INR, $ USD, € EUR) and select the one you want.</li>
+            </ol>
+            The app will update to show all financial amounts in your newly selected currency.
+        </div>
+    </div>
 
-        </div>
-    </div>
-    </div> <div id="faqContent" style="display:none;">
     <div class="faq-item">
         <div class="faq-question" onclick="toggleFaqAnswer(this)">
-            What is an "Expense Fund"? <span class="faq-toggle-icon">🔽</span>
+            What is "Daiko" the AI assistant? <span class="faq-toggle-icon">▼</span>
         </div>
         <div class="faq-answer">
-            Expense Funds are categories you create to track your spending on specific items like "Groceries", "Utilities", "Entertainment", etc.
-        </div>
-    </div>
-    <div class="faq-item">
-        <div class="faq-question" onclick="toggleFaqAnswer(this)">
-            What is an "Investment Fund"? <span class="faq-toggle-icon">🔽</span>
-        </div>
-        <div class="faq-answer">
-            Investment Funds are for tracking money allocated towards savings, stocks, mutual funds, or any other investment.
-        </div>
-    </div>
-    <div class="faq-item">
-        <div class="faq-question" onclick="toggleFaqAnswer(this)">
-            How does "Auto-Deduct" work? <span class="faq-toggle-icon">🔽</span>
-        </div>
-        <div class="faq-answer">
-            "Auto-Deduct" is for fixed recurring payments like EMIs or monthly investments. If checked, the specified amount is automatically deducted at the start of each new month. You can also specify a "Due Day" for informational purposes.
+            Daiko is your smart, friendly, in-app AI assistant, here to make managing your finances easier! You can find the chatbot icon (🤖) on the bottom right of your screen.
+            <ul>
+                <li><strong>Chat with Daiko:</strong> You can type messages or, if you grant microphone permission (via the 🎤 icon in chat), talk to Daiko using voice commands.</li>
+                <li><strong>What Daiko Can Do:</strong> Daiko can help you with various tasks like:
+                    <ul>
+                        <li>Setting or updating your monthly income (e.g., "Set income to 50000").</li>
+                        <li>Creating new expense or investment funds (e.g., "Create a fund for Groceries").</li>
+                        <li>Logging your expenses (e.g., "Log 500 for Coffee").</li>
+                        <li>Checking your current balance or details for a specific fund.</li>
+                        <li>Even searching Wikipedia for general knowledge questions (e.g., "What is inflation?").</li>
+                    </ul>
+                </li>
+                <li><strong>How Daiko Understands:</strong> Daiko uses a combination of programmed logic to understand your commands and sentiment analysis (from the ml5.js library) to get a feel for your messages.</li>
+            </ul>
+            Think of Daiko as your personal helper for quick financial actions and information!
         </div>
     </div>
     <div class="faq-item">
         <div class="faq-question" onclick="toggleFaqAnswer(this)">
-            How do I revert a transaction? <span class="faq-toggle-icon">🔽</span>
+            How do "Daiko's Financial Insights" work? <span class="faq-toggle-icon">▼</span>
         </div>
         <div class="faq-answer">
-            You can use the "Revert Last Transaction" button in the "Log Transaction" section to undo your most recent expense or fund transfer.
+            "Daiko's Financial Insights" provide you with personalized observations and suggestions about your finances for the current month. You can access these by tapping the lightbulb icon (💡), which appears as a floating button on the Dashboard, History, and Analytics screens.
+            <ul>
+                <li><strong>What it does:</strong> Daiko looks at your set income, your spending patterns across different funds, and how much you've allocated to savings or investments for the current month you are viewing.</li>
+                <li><strong>Personalized Tips:</strong> Based on this analysis, Daiko might:
+                    <ul>
+                        <li>Alert you if a fund is running low.</li>
+                        <li>Point out if your spending in a category is high compared to your income.</li>
+                        <li>Suggest how common budgeting rules (like the 50/30/20 rule for Needs/Wants/Savings) might apply to your specific financial situation, and show how your current spending aligns.</li>
+                        <li>Provide reminders for upcoming EMI due dates if you've set them for your "Auto-Deduct" funds.</li>
+                    </ul>
+                </li>
+            </ul>
+            The goal is to give you a quick, AI-driven perspective to help you stay on track and make smarter financial choices.
         </div>
     </div>
     <div class="faq-item">
         <div class="faq-question" onclick="toggleFaqAnswer(this)">
-            Can I change my currency? <span class="faq-toggle-icon">🔽</span>
+            What's the difference between "Individual Planner" and "Shared Planner" modes? <span class="faq-toggle-icon">▼</span>
         </div>
         <div class="faq-answer">
-            Yes, you can change your preferred currency (USD, EUR, INR) in the "Settings" section.
+            DaikuFi offers two distinct modes to manage your budget, which you can choose in "Settings" under the "Budget Mode" section:
+            <ul>
+                <li><strong>Individual Planner (Offline, Local Data):</strong>
+                    <ul>
+                        <li>All your financial data (income, funds, transactions, history) is stored directly on your device within your browser's local storage.</li>
+                        <li><strong>Pros:</strong> It's completely private to your device, and you can use it even without an internet connection.</li>
+                        <li><strong>Cons:</strong> If you clear your browser data or lose access to your device, your DaikuFi data will be lost unless you've backed it up manually (e.g., by downloading PDF statements).</li>
+                    </ul>
+                </li>
+                <li><strong>Shared Planner (Online Sync with Login):</strong>
+                    <ul>
+                        <li>This mode requires you to create an account and log in using your email and password (this is powered by Firebase Authentication).</li>
+                        <li>Your financial data is securely stored in the cloud using Firebase Firestore.</li>
+                        <li><strong>Pros:</strong> You can access your budget from multiple devices simply by logging in. Your data is also backed up in the cloud.</li>
+                        <li><strong>Cons:</strong> Requires an internet connection for data to sync and for login.</li>
+                    </ul>
+                </li>
+            </ul>
+            Choose the mode that best suits your privacy preferences and accessibility needs!
         </div>
     </div>
-  </div>
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            How do I switch between "Individual" and "Shared" modes? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            You can switch between "Individual Planner" and "Shared Planner" modes from the "Settings" screen:
+            <ol>
+                <li>Go to "Settings" using the bottom navigation bar.</li>
+                <li>Find the "Budget Mode" section. You'll see radio buttons for "Individual Planner" and "Shared Planner".</li>
+                <li>Select the mode you want to switch to by tapping on it.</li>
+            </ol>
+            Here's what happens when you switch, based on the `handleModeChangeAttempt` logic in the app:
+            <ul>
+                <li><strong>Switching from Individual to Shared:</strong>
+                    <ul>
+                        <li>The app will first save your choice of "Shared Planner" mode.</li>
+                        <li>If you are not already logged in, it will prompt you to log in or sign up for a Shared Planner account using email and password.</li>
+                        <li>After you successfully log in, DaikuFi will ask if you want to upload your existing local data (from your Individual Planner) to this new shared online budget. You can choose to merge it (local data usually takes precedence for common items) or start fresh with the online budget.</li>
+                    </ul>
+                </li>
+                <li><strong>Switching from Shared to Individual:</strong>
+                    <ul>
+                        <li>If you are logged into a Shared Planner account, the app will inform you that a logout is required.</li>
+                        <li>During the logout process (initiated by you via the "Logout" button), DaikuFi will ask if you want to copy your current shared budget data to your device for local, offline use in the Individual Planner mode. You can choose to overwrite any existing local data with this shared data, or stick with what was previously stored locally on that device.</li>
+                        <li>Once logged out and data choice is made, the app will operate in Individual mode using local storage.</li>
+                    </ul>
+                </li>
+            </ul>
+            The app aims to guide you through these data handling choices to ensure a smooth transition.
+        </div>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            How does "Scan & Pay (QR)" work for logging transactions? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            The "Scan & Pay (QR)" feature helps you quickly log expenses made via UPI QR codes. Here's a step-by-step guide:
+            <ol>
+                <li>Go to the "Dashboard" tab.</li>
+                <li>Tap the "Log New Transaction" button to expand the logging section.</li>
+                <li>Select the fund you're paying from (e.g., "Groceries") and enter the amount of the transaction.</li>
+                <li>Choose the "Scan & Pay (QR)" payment method option.</li>
+                <li>A QR scanner modal will pop up. The app will request permission to use your device's camera if it hasn't been granted already.</li>
+                <li>Point your camera at the UPI QR code. The app uses a built-in scanner (from the HTML5-QRCode library) to read the QR code.</li>
+                <li>Once successfully scanned, DaikuFi logs this transaction against the selected fund and amount in its history. It may then attempt to open the UPI payment link using your phone's default app for handling UPI payments, allowing you to complete the payment.</li>
+                <li><strong>Alternative for Images:</strong> If you have a QR code saved as an image on your device, you can tap the "Upload QR Image" button within the scanner modal to select and scan it.</li>
+            </ol>
+            This feature, using functions like `openQrScannerModal` and `processScannedUpiData`, makes logging digital payments faster and more convenient.
+        </div>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            How does the "Pay via App" option work? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            The "Pay via App" option streamlines logging a UPI transaction within DaikuFi and then making the actual payment using one of your installed UPI apps. Here's how it works:
+            <ol>
+                <li>On the "Dashboard", find the "Log New Transaction" section (tap the button to expand it if needed).</li>
+                <li>Select the fund you wish to pay from and enter the transaction amount.</li>
+                <li>Choose "Pay via App" as your payment method.</li>
+                <li>When you tap the "Log Expense" button:
+                    <ul>
+                        <li>DaikuFi first records this transaction in your app's history for the selected fund.</li>
+                        <li>Then, it attempts to automatically open the default UPI payment app you've selected in DaikuFi's "Settings" (e.g., GPay, PhonePe, AmazonPay as listed in `paymentAppUrls` and selectable via `defaultPaymentAppSelect`).</li>
+                    </ul>
+                </li>
+                <li>You would then complete the actual payment details and confirm within your chosen UPI app.</li>
+            </ol>
+            You can set your preferred default payment app in "Settings" by tapping on "Default Payment App (for direct open)". This makes it a quick two-step process: log the expense in DaikuFi, then confirm the payment in your UPI app.
+        </div>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            How do I download a financial statement? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            DaikuFi allows you to download a PDF summary of your financial activities, which is great for record-keeping or review.
+            <ol>
+                <li>Navigate to the "Analytics" section using the bottom navigation bar.</li>
+                <li>Under the "Statement Download" heading, you'll find two options:
+                    <ul>
+                        <li><strong>Download Statement (Date Range):</strong> Use the "Start Date" and "End Date" pickers (`pdfStartDate`, `pdfEndDate`) to choose the exact period you want. Then, tap the "Download Statement (Date Range)" button.</li>
+                        <li><strong>Download Current Month Statement:</strong> Simply tap this button to get a statement that covers the entire month you are currently viewing in the app.</li>
+                    </ul>
+                </li>
+            </ol>
+            The statement will be generated as a PDF file (using `jsPDF` and `jsPDF-AutoTable` as seen in `script.js`) and downloaded to your device. It typically includes an account summary and a detailed list of your transactions for the selected period.
+        </div>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            Can I customize the app's appearance? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            Yes, DaikuFi offers several ways to personalize its look and feel to match your preference!
+            <ol>
+                <li>Go to the "Settings" section using the bottom navigation bar.</li>
+                <li><strong>Theme:</strong> You can switch between a "🌞 Light Mode" and a "🌙 Dark Mode" using the toggle switch next to "Theme:". The app will remember your choice for future visits.</li>
+                <li><strong>Light Mode Palette:</strong> If you're using Light Mode, you can further customize its colors. Look for the "Light Mode Palette" dropdown menu (`lightModePaletteSelect`). You can choose from options such as:
+                    <ul>
+                        <li>Default (Lavender Glow)</li>
+                        <li>Ocean Breeze</li>
+                        <li>Forest Calm</li>
+                    </ul>
+                This changes the primary color accents within the light theme. These are defined with CSS variables like `--primary-color` and are swapped out by the JavaScript function `applyPalette`.
+                </li>
+            </ol>
+            Feel free to experiment with these options to find a style that you enjoy the most!
+        </div>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            Why should I set my timezone? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            Setting your correct timezone in DaikuFi is important for ensuring all your financial records are accurate and make sense for your location. Here's why:
+            <ul>
+                <li><strong>Accurate Transaction Timestamps:</strong> When you log any income, expense, or transfer, DaikuFi records the exact date and time. If your timezone isn't set correctly (via `timezoneSelect` in Settings), these timestamps might be off, reflecting a different part of the world's time.</li>
+                <li><strong>Consistent History:</strong> Correct timestamps mean your transaction history, visible in the "History" section, is sorted and displayed chronologically according to your actual local time.</li>
+                <li><strong>Reliable Statements:</strong> When you download PDF statements from the "Analytics" section, the dates and times on those statements will use your selected timezone, making them accurate for your records.</li>
+            </ul>
+            You can easily set your timezone in the "Settings" section under the "Timezone" option. The app tries to default to your browser's current timezone, but you can choose a different one from the list if needed.
+        </div>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            How can I customize my profile? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            You can personalize your DaikuFi profile to make it feel more like your own! Here's how:
+            <ol>
+                <li>Navigate to the "Settings" section using the bottom navigation bar.</li>
+                <li>Scroll down to the "User Authentication & Profile" group. Even if you're using the "Individual Planner" mode, you can customize some parts.</li>
+                <li>Under "Profile Customization," you'll find options to:
+                    <ul>
+                        <li><strong>Display Name:</strong> Enter your preferred name in the "Display Name" field (element `userNameInput`). This name is used in welcome messages on the Dashboard.</li>
+                        <li><strong>Choose Avatar:</strong> Tap on one of the emoji options available in the "Choose Avatar" list (`avatarOptions`). This avatar will appear next to your welcome message and in your profile display within settings.</li>
+                    </ul>
+                </li>
+            </ol>
+            If you are using the "Shared Planner" mode and are logged in, your registered email address will also be displayed in this profile section.
+        </div>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            What kind of notifications will I receive? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            DaikuFi provides helpful in-app notifications to keep you informed about important aspects of your budget. You can view these notifications by tapping the bell icon (🔔) located at the top right of the screen.
+            Currently, DaikuFi can notify you about:
+            <ul>
+                <li><strong>Due Payment Reminders:</strong> If you've created an "Auto-Deduct" fund (like for an EMI or a recurring subscription) and set a specific "Due Day" for it, DaikuFi will generate a notification a few days before this payment is due, helping you remember it. (Handled in `checkAndAddNotifications`)</li>
+                <li><strong>Low Fund Balance Alerts:</strong> For your manual expense funds, if the remaining balance drops to 50% or even critically to 10% of its initial allocated amount, DaikuFi will send you an alert. This gives you a heads-up so you can adjust your spending or transfer funds if needed. (Handled in `checkAndAddNotifications`)</li>
+            </ul>
+            These notifications are designed to help you stay on top of your finances proactively. Unread notifications will show a badge count on the bell icon.
+        </div>
+    </div>
+     <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaqAnswer(this)">
+            What are the "How was my day?" and "Daywise Expenses" charts? <span class="faq-toggle-icon">▼</span>
+        </div>
+        <div class="faq-answer">
+            These two charts are found in the "History" section and provide visual ways to understand your spending patterns. You can tap on their headers to expand or collapse them:
+            <ul>
+                <li><strong>How was my day? (Hourly Expense Chart):</strong>
+                    <ul>
+                        <li>This is a bar chart (`howWasMyDayBarChart`) that shows your total expenses for the <strong>current calendar day</strong>, broken down by the <strong>hour</strong> in which each expense occurred.</li>
+                        <li>It helps you visualize your spending rhythm throughout the day. For example, you might notice higher spending around lunchtime or in the evening after work. (Logic in `getHowWasMyDayExpenseDataForChart` and `renderHowWasMyDayChart`)</li>
+                    </ul>
+                </li>
+                <li><strong>Daywise Expenses (Daily Expense Chart):</strong>
+                    <ul>
+                        <li>This bar chart (`dailyBarChart`) displays your total expenses for <strong>each individual day of the currently selected month</strong> in the app (e.g., June 1st, June 2nd, etc.).</li>
+                        <li>It allows you to see which days of the month you typically spend more or less, helping you identify trends like higher weekend spending or patterns related to bill payments. (Logic in `getDailyExpenseDataForChart` and `renderDailyBarChart`)</li>
+                    </ul>
+                </li>
+            </ul>
+            Both charts use your logged transaction data to provide these visual summaries.
+        </div>
+    </div>
+    </div>
   <div class="floating-notification-area">
       <span class="floating-notification-icon" onclick="toggleNotifications()">🔔</span>
       <span class="notification-badge" id="notificationBadge">0</span>
@@ -355,13 +538,12 @@
       </div>
   </div>
 
-<button class="fab" onclick="openCreateFundModal()" aria-label="Add New Fund">+</button>
-    <button class="daiko-insights-fab" id="daikoInsightsFab" onclick="openDaikoInsightsModal()" aria-label="Get insights with Daiko" style="display: none;">
+  <button class="fab" onclick="openCreateFundModal()" aria-label="Add New Fund">+</button>
+<button class="daiko-insights-fab" id="daikoInsightsFab" onclick="openDaikoInsightsModal()" aria-label="Get insights with Daiko" style="display: none;">
         💡
     </button>
-</button><button class="chatbot-fab" id="chatbotFab" aria-label="Open Chatbot">🤖</button>
-<nav class="bottom-nav">
-    <button onclick="scrollToSection('dashboard-section')" class="active" id="navDashboardBtn" aria-label="Go to Dashboard">Dashboard</button>
+<button class="chatbot-fab" id="chatbotFab" aria-label="Open Chatbot">🤖</button>
+  <nav class="bottom-nav"> <button onclick="scrollToSection('dashboard-section')" class="active" id="navDashboardBtn" aria-label="Go to Dashboard">Dashboard</button>
     <button onclick="scrollToSection('history-section')" id="navHistoryBtn" aria-label="Go to History">History</button>
     <button onclick="scrollToSection('analytics-section')" id="navAnalyticsBtn" aria-label="Go to Analytics">Analytics</button>
     <button onclick="scrollToSection('settings-section')" id="navSettingsBtn" aria-label="Go to Settings">Settings</button>
@@ -372,8 +554,7 @@
       <button class="close-btn" id="closeChatBtn" aria-label="Close Chatbot">X</button>
     </div>
     <div class="chat-messages" id="chatMessages">
-      <div class="chat-message bot"><span>Hello! I'm your DaikuFi bot. You can call me Daiko! How can I assist you today? Try asking about your 'balance' or how to 'add a fund'.</span></div>
-    </div>
+      <div class="chat-message bot"><span>Hello! I'm your DaikuFi bot. You can call me Daiko! How can I assist you today? Try asking about your 'balance' or how to 'add a fund'.</span></div> </div>
     <div class="chat-input-area">
       <input type="text" id="chatInput" placeholder="Type a message..." aria-label="Chat input" />
       <button id="micBtn" class="chat-icon-btn" aria-label="Start Speech Recognition">🎤</button> <button id="sendChatBtn" aria-label="Send message">Send</button>
@@ -408,16 +589,15 @@
         </div>
     </div>
   </div>
-
   <div id="editFundModal" class="modal-overlay">
     <div class="modal-content">
         <h3 id="editFundModalTitle">Edit Fund</h3>
         <input type="hidden" id="editingFundNameOriginal">
-        <label for="editFundName" style="display:block; text-align:left; margin-bottom:5px;">Fund Name:</label>
-        <input type="text" id="editFundName" placeholder="Fund name" style="margin-bottom:15px;" />
+        <label for="editFundName" class="form-label-block">Fund Name:</label>
+        <input type="text" id="editFundName" placeholder="Fund name" class="input-mb-15" />
 
-        <label for="editFundAmount" style="display:block; text-align:left; margin-bottom:5px;">Amount:</label>
-        <input type="number" id="editFundAmount" placeholder="Amount" style="margin-bottom:15px;" />
+        <label for="editFundAmount" class="form-label-block">Amount:</label>
+        <input type="number" id="editFundAmount" placeholder="Amount" class="input-mb-15" />
 
         <div class="radio-group" id="editFundTypeGroup">
             <span>Fund Type:</span>
@@ -429,8 +609,8 @@
             <label><input type="checkbox" id="editIsAutoDeduct" onchange="toggleEditDueDayVisibility()"> Auto-Deduct</label>
         </div>
 
-        <div id="editDueDayInputContainer" class="emi-amount-input" style="margin-bottom:15px;">
-             <label for="editFundDueDay" style="display:block; text-align:left; margin-bottom:5px;">Due Day of Month:</label>
+        <div id="editDueDayInputContainer" class="emi-amount-input input-mb-15">
+             <label for="editFundDueDay" class="form-label-block">Due Day of Month:</label>
             <input type="number" id="editFundDueDay" placeholder="Due Day (1-31)" min="1" max="31" />
         </div>
 
@@ -440,52 +620,34 @@
         </div>
     </div>
   </div>
-
   <div id="customModal" class="modal-overlay">
     <div class="modal-content">
       <h3 id="modalTitle"></h3>
       <p id="modalMessage"></p>
       <div class="modal-buttons">
-        <button id="modalConfirmBtn" class="primary" style="display:none;" aria-label="Confirm Action">OK</button>
-        <button id="modalAlertBtn" class="primary" style="display:none;" aria-label="Acknowledge">OK</button>
-        <button id="modalCancelBtn" class="secondary" style="display:none;" aria-label="Cancel Action">Cancel</button>
-      </div>
+        <button id="modalConfirmBtn" class="primary" style="display:none;" aria-label="Confirm Action">OK</button> <button id="modalAlertBtn" class="primary" style="display:none;" aria-label="Acknowledge">OK</button> <button id="modalCancelBtn" class="secondary" style="display:none;" aria-label="Cancel Action">Cancel</button> </div>
     </div>
   </div>
-
   <div id="qrScannerModal" class="modal-overlay">
     <div class="modal-content">
       <h3>Scan UPI QR Code</h3>
-      <div id="qrScannerView" style="width: 100%; max-width:300px; height: 250px; background-color: #eee; margin: 0 auto 15px auto; display:flex; align-items:center; justify-content:center; border: 1px solid var(--border-color); border-radius: 8px;">
-        <p style="color: var(--text-color); opacity: 0.7;">Initializing QR Scanner...</p>
+      <div id="qrScannerView">
+        <p class="qr-scanner-init-text">Initializing QR Scanner...</p>
       </div>
-      <input type="file" id="qrFileInput" accept="image/*" style="display: none;">
-      <button onclick="document.getElementById('qrFileInput').click()" class="secondary" style="margin-bottom:10px;">Upload QR Image</button>
-      <p id="qrScanResult" style="font-size:0.9em; color: var(--text-color); word-break:break-all; min-height: 1.2em;"></p>
-      <div class="modal-buttons" style="margin-top:15px;">
+      <input type="file" id="qrFileInput" accept="image/*" style="display: none;"> <button onclick="document.getElementById('qrFileInput').click()" class="secondary button-mb-10">Upload QR Image</button>
+      <p id="qrScanResult"></p>
+      <div class="modal-buttons mt-15">
         <button onclick="closeQrScannerModal()" class="secondary">Cancel</button>
       </div>
     </div>
   </div>
-  
-    <div id="daikoInsightsModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 450px;">
-            <h3 id="daikoInsightsModalTitle">Daiko's Financial Insights</h3>
-            <div id="daikoInsightsContent" style="max-height: 65vh; overflow-y: auto; text-align: left; padding-top:10px; font-size: 0.9em; line-height: 1.6;">
-                <p>Let me take a look at your finances...</p>
-            </div>
-            <div class="modal-buttons" style="margin-top:20px; display: flex; justify-content: space-between; align-items: center;">
-                <button id="toggleDaikoSpeakBtn" onclick="toggleDaikoInsightSpeech()" class="secondary" style="width: auto; padding: 8px 12px; font-size: 18px;">🔊</button>
-                <button onclick="closeDaikoInsightsModal()" class="secondary" style="min-width: 100px;">Got it!</button>
-            </div>
-        </div>
-    </div>
+  <div id="daikoInsightsModal" class="modal-overlay"> <div class="modal-content daiko-insights-modal-content"> <h3 id="daikoInsightsModalTitle">Daiko's Financial Insights</h3> <div id="daikoInsightsContent"> <p>Let me take a look at your finances...</p> </div> <div class="modal-buttons daiko-insights-modal-buttons"> <button id="toggleDaikoSpeakBtn" onclick="toggleDaikoInsightSpeech()" class="secondary daiko-speak-button">🔊</button> <button onclick="closeDaikoInsightsModal()" class="secondary daiko-close-button">Got it!</button> </div> </div> </div> <div id="toastNotification" class="toast-notification"></div>
 
-<div id="toastNotification" class="toast-notification"></div>
-<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-analytics-compat.js"></script>  
+ <script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-analytics-compat.js"></script>
+  
 <script src="script.js"></script>
 </body>
 </html>
