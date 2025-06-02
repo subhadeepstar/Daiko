@@ -3929,12 +3929,14 @@ function updateUserTimezone() {
         }
     }
 
-    async function showNextTutorialStep() {
-        if (localStorage.getItem('tutorialShown') === 'true') return;
+ async function showNextTutorialStep() {
+        if (localStorage.getItem('tutorialShown') === 'true') {
+            console.log("Tutorial already marked as complete, skipping.");
+            return;
+        }
 
         if (currentTutorialStep >= tutorialSteps.length) {
-            localStorage.setItem('tutorialShown', 'true');
-            document.querySelectorAll('.highlight-tutorial').forEach(el => el.classList.remove('highlight-tutorial'));
+            markTutorialAsComplete(); // Call the new function here
             render();
             return;
         }
@@ -3957,17 +3959,28 @@ function updateUserTimezone() {
             if (focusEl) focusEl.focus();
         }
 
-        if (step.highlightId !== 'fab') {
+        if (step.highlightId !== 'fab') { // This condition is specific to the "Create Your Funds" step
             currentTutorialStep++;
             if (currentTutorialStep < tutorialSteps.length) {
                  setTimeout(showNextTutorialStep, 300);
             } else {
-                localStorage.setItem('tutorialShown', 'true');
-                document.querySelectorAll('.highlight-tutorial').forEach(el => el.classList.remove('highlight-tutorial'));
+                markTutorialAsComplete(); // Call the new function here when all steps are done
                 render();
             }
         }
+        // If the current step's highlightId IS 'fab', we wait for the user to click it.
+        // The currentTutorialStep is incremented inside openCreateFundModal().
+        // So, once openCreateFundModal is called and the tutorial proceeds,
+        // it eventually hits the final step and calls markTutorialAsComplete.
+        // This structure seems to be the intended flow.
     }
+
+    function markTutorialAsComplete() {
+    localStorage.setItem('tutorialShown', 'true');
+    console.log("Tutorial marked as complete.");
+    // Optionally clean up any highlights if they are still active
+    document.querySelectorAll('.highlight-tutorial').forEach(el => el.classList.remove('highlight-tutorial'));
+}
 
     async function startTutorial() {
         currentTutorialStep = 0;
