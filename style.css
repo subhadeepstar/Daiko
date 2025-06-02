@@ -266,7 +266,19 @@ h3#dashboard-section {
   margin-top: 5px;
   margin-bottom: 5px;
 }
-
+.settings-link {
+    text-decoration: none;
+    color: var(--primary-color);
+    display: block; /* Makes the whole area clickable if inside an <li> */
+    padding: 8px 0; /* Example padding */
+}
+.settings-link:hover {
+    text-decoration: underline;
+    color: var(--button-hover-primary);
+}
+.legal-links-list li { /* Optional: if you want some spacing */
+    margin-bottom: 5px;
+}
 /* Input Fields, Selects - Wider, centered, softer rounding */
 input[type="text"],
 input[type="number"],
