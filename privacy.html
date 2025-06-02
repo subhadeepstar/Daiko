@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy - DaikuFi</title>
+  <meta name="description" content="Privacy Policy for DaikuFi App.">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { max-width: 800px; padding: 20px; margin: 20px auto; }
+    .legal-content { background-color: var(--card-bg); color: var(--text-color); padding: 20px; border-radius: 12px; margin-top: 20px; }
+    .legal-content h1 { color: var(--primary-color); margin-bottom: 20px; text-align: center;}
+    .legal-content h2 { color: var(--text-secondary-color); margin-top: 30px; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid var(--border-color); padding-bottom: 5px;}
+    .legal-content p, .legal-content li { margin-bottom: 10px; line-height: 1.6; }
+    .legal-content ul { padding-left: 20px; }
+    .back-link { display: inline-block; margin-top: 20px; padding: 10px 15px; background-color: var(--primary-color); color: var(--light-text-color); text-decoration: none; border-radius: 8px; transition: background-color 0.3s; }
+    .back-link:hover { background-color: var(--button-hover-primary); }
+    .placeholder-warning { background-color: var(--warning-orange); color: var(--text-color); padding: 10px; border-radius: 5px; margin-bottom:20px; text-align:center; font-weight:500;}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="legal-content">
+      <a href="index.html#settings-section" class="back-link">← Back to Settings</a>
+      <h1>Privacy Policy for DaikuFi</h1>
+      <p class="placeholder-warning"><strong>Important:</strong> This is a template. Consult a legal professional to create a compliant Privacy Policy.</p>
+      <p><em>Last Updated: June 2, 2025</em></p>
+
+      <h2>1. Introduction</h2>
+      <p>Welcome to DaikuFi ("App", "we", "us", "our"). We are committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our progressive web application (PWA).</p>
+
+      <h2>2. Information We Collect</h2>
+      <p>We may collect information about you in a variety of ways. The information we may collect via the App depends on the features you use:</p>
+      <ul>
+        <li><strong>Personal Data:</strong>
+            <ul>
+                <li>If you choose the "Shared Planner" mode, we collect your email address and password for authentication purposes via Firebase Auth.</li>
+                <li>Your display name and chosen avatar if you customize your profile.</li>
+            </ul>
+        </li>
+        <li><strong>Financial Data:</strong>
+            <ul>
+                <li>Monthly income, fund names, fund amounts, transaction details (description, amount, category, payment method) that you voluntarily enter into the app.</li>
+                <li>In "Individual Planner" mode, this data is stored locally in your browser's localStorage.</li>
+                <li>In "Shared Planner" mode, this data is stored on Firebase Firestore, associated with your authenticated account.</li>
+            </ul>
+        </li>
+        <li><strong>Usage Data:</strong>
+            <ul>
+                <li>We use Firebase Analytics to collect anonymized usage data to understand how our app is used and to improve its functionality. This may include information about features accessed and session duration.</li>
+                <li>Chat interactions with "Daiko" (our AI assistant) may be processed locally for sentiment analysis (using ml5.js) and for understanding commands. These interactions are not typically stored long-term unless part of a transaction log.</li>
+            </ul>
+        </li>
+        <li><strong>Device Data:</strong>
+             <ul>
+                <li>Access to your device's camera is requested if you use the "Scan & Pay (QR)" feature. Images are processed locally for QR code detection and are not stored by the app.</li>
+                <li>Access to your microphone is requested if you use voice input for the chatbot. Audio is processed for speech-to-text and is not stored by the app.</li>
+            </ul>
+        </li>
+      </ul>
+
+      <h2>3. How We Use Your Information</h2>
+      <p>Having accurate information permits us to provide you with a smooth, efficient, and customized experience. Specifically, we may use information collected about you via the App to:</p>
+      <ul>
+        <li>Create and manage your account (for "Shared Planner" mode).</li>
+        <li>Enable you to track and manage your personal finances.</li>
+        <li>Provide financial insights and AI-driven assistance.</li>
+        <li>Enable PWA features like installability and core functionalities.</li>
+        <li>Analyze usage trends to improve our App.</li>
+        <li>Respond to your requests and provide support.</li>
+      </ul>
+
+      <h2>4. Disclosure of Your Information</h2>
+      <p>We do not share your personally identifiable information or financial data with third parties except in the following situations or as otherwise described in this Privacy Policy:</p>
+      <ul>
+        <li><strong>With Service Providers:</strong> We use Firebase (Google) for backend services (Authentication, Firestore Database, Analytics). Firebase's use of information is governed by their own privacy policies.</li>
+        <li><strong>By Law or to Protect Rights:</strong> If we believe the release of information about you is necessary to respond to legal process, to investigate or remedy potential violations of our policies, or to protect the rights, property, and safety of others, we may share your information as permitted or required by any applicable law, rule, or regulation.</li>
+      </ul>
+
+      <h2>5. Data Security</h2>
+      <p>We use administrative, technical, and physical security measures to help protect your personal information. For data stored locally ("Individual Planner"), security depends on your device's security. For "Shared Planner" mode, Firebase provides security for data stored on their servers. While we have taken reasonable steps to secure the personal information you provide to us, please be aware that despite our efforts, no security measures are perfect or impenetrable, and no method of data transmission can be guaranteed against any interception or other type of misuse.</p>
+
+      <h2>6. Data Retention</h2>
+      <p>In "Individual Planner" mode, your data remains on your device until you clear your browser's local storage or reset the app data.</p>
+      <p>In "Shared Planner" mode, your data is retained on Firebase Firestore as long as your account is active or as needed to provide you services. You can request data deletion by contacting us.</p>
+
+      <h2>7. Your Choices Regarding Your Information</h2>
+      <ul>
+        <li>You can review and change your financial data at any time within the app.</li>
+        <li>You can opt-out of "Shared Planner" mode by switching to "Individual Planner" mode (data handling options will be presented).</li>
+        <li>You can reset your data for the current month using the "Reset Data" option in settings.</li>
+        <li>You can typically clear locally stored data by clearing your browser's cache and site data for our app.</li>
+      </ul>
+
+      <h2>8. Policy for Children</h2>
+      <p>We do not knowingly solicit information from or market to children under the age of 13 (or higher age as required by local law). If we learn that we have collected personal information from a child under such age without verification of parental consent, we will delete that information as quickly as possible.</p>
+
+      <h2>9. Changes to This Privacy Policy</h2>
+      <p>We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy within the app and updating the "Last Updated" date. You are advised to review this Privacy Policy periodically for any changes.</p>
+
+      <h2>10. Contact Us</h2>
+      <p>If you have questions or comments about this Privacy Policy, please contact us at: [Your Email Address for Privacy Inquiries]</p>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Permissions Explained - DaikuFi</title>
+  <meta name="description" content="Explanation of permissions used by DaikuFi App.">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { max-width: 800px; padding: 20px; margin: 20px auto; }
+    .legal-content { background-color: var(--card-bg); color: var(--text-color); padding: 20px; border-radius: 12px; margin-top: 20px; }
+    .legal-content h1 { color: var(--primary-color); margin-bottom: 20px; text-align: center;}
+    .legal-content h2 { color: var(--text-secondary-color); margin-top: 30px; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid var(--border-color); padding-bottom: 5px;}
+    .legal-content p, .legal-content li { margin-bottom: 10px; line-height: 1.6; }
+    .legal-content ul { padding-left: 20px; }
+    .back-link { display: inline-block; margin-top: 20px; padding: 10px 15px; background-color: var(--primary-color); color: var(--light-text-color); text-decoration: none; border-radius: 8px; transition: background-color 0.3s; }
+    .back-link:hover { background-color: var(--button-hover-primary); }
+    .placeholder-warning { background-color: var(--warning-orange); color: var(--text-color); padding: 10px; border-radius: 5px; margin-bottom:20px; text-align:center; font-weight:500;}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="legal-content">
+      <a href="index.html#settings-section" class="back-link">← Back to Settings</a>
+      <h1>Permissions Explained for DaikuFi</h1>
+      <p class="placeholder-warning"><strong>Important:</strong> This is a template. Ensure it accurately reflects your app's usage of permissions.</p>
+      <p>DaikuFi requests certain permissions to provide you with its full range of features. We are committed to using these permissions responsibly and only for the purposes stated below.</p>
+
+      <h2>1. Camera Access</h2>
+      <p><strong>Purpose:</strong> To enable the "Scan & Pay (QR)" feature.</p>
+      <p><strong>How it's used:</strong> When you choose to log a transaction using the "Scan & Pay" method, the app will request access to your device's camera. This allows the app to scan UPI (Unified Payments Interface) QR codes. The image data from the camera is processed locally on your device to decode the QR information. No images or video are stored or transmitted by the DaikuFi app.</p>
+      <p><em>This permission is optional. If you do not grant camera access, you can still use other payment logging methods like "Cash" or "Pay via App", or upload a QR image from your device.</em></p>
+
+      <h2>2. Microphone Access</h2>
+      <p><strong>Purpose:</strong> To enable voice commands and speech-to-text input for the "Daiko" chatbot feature.</p>
+      <p><strong>How it's used:</strong> If you choose to interact with the chatbot using voice, the app will request microphone access. Your speech is processed by your browser's built-in speech recognition service to convert it into text for the chatbot to understand. The audio data itself is not stored or transmitted by the DaikuFi app.</p>
+      <p><em>This permission is optional. If you do not grant microphone access, you can still interact with the chatbot by typing your messages.</em></p>
+      
+      <h2>3. Local Storage / Browser Storage</h2>
+      <p><strong>Purpose:</strong> To store your app data and settings locally on your device, especially for "Individual Planner" mode and PWA functionality.</p>
+      <p><strong>How it's used:</strong> The app uses your browser's local storage to save your financial data (income, funds, transactions, history), application settings (like theme, currency preferences), and user profile information when you are in "Individual Planner" mode. This allows the app to function offline and remember your preferences. For PWA functionality, service workers may cache app assets for faster loading and offline use.</p>
+      <p><em>This is a standard browser capability and essential for the app's core functionality. You can clear this data through your browser settings.</em></p>
+
+      <h2>4. Notifications (via Browser)</h2>
+      <p><strong>Purpose:</strong> To provide you with timely reminders and alerts related to your finances (e.g., upcoming EMI due dates, low fund balances).</p>
+      <p><strong>How it's used:</strong> The app may use your browser's notification system to display alerts. These are configured within the app based on your financial entries. Currently, these are in-app notifications. If browser push notifications were implemented in the future, explicit permission would be requested.</p>
+      <p><em>You can manage notification preferences related to specific app features within the app or browser settings if applicable.</em></p>
+
+      <h2>5. Network Access (Internet)</h2>
+      <p><strong>Purpose:</strong> To enable online features like "Shared Planner" mode (data sync with Firebase), fetching external libraries (like fonts, Chart.js, ml5.js), and for the AI chatbot to potentially access external knowledge (like Wikipedia).</p>
+      <p><strong>How it's used:</strong> Required for Firebase authentication, database synchronization in "Shared Planner" mode, loading necessary web resources, and for the chatbot to perform actions like searching Wikipedia. An internet connection is necessary for these features to work.</p>
+      <p><em>This is a standard permission for web applications.</em></p>
+
+      <p>We believe in transparency. If you have any questions about how DaikuFi uses these permissions, please don't hesitate to contact us at [Your Support Email Address].</p>
+    </div>
+  </main>
+</body>
+</html>
