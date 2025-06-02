@@ -363,7 +363,11 @@ button,
 .fund-tablet {
     -webkit-tap-highlight-color: transparent;
 }
-
+.daiko-insights-modal-content {
+    max-height: 80vh; /* Adjust as needed, e.g., 80% of viewport height */
+    overflow-y: auto; /* This will add the scrollbar when content overflows vertically */
+    -webkit-overflow-scrolling: touch; /* For smoother scrolling on iOS */
+}
 .modal-buttons button {
     font-size: 14px;
     border-radius: 15px;
