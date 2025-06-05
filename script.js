@@ -55,7 +55,7 @@ auth.onAuthStateChanged(async user => {
         // Use local userProfile.name if available and not "Guest", otherwise derive from email
         let displayNameForWelcome = (userProfile.name && userProfile.name !== 'Guest' && userProfile.name.trim() !== '') ? userProfile.name : currentUser.email.split('@')[0];
         if (welcomeMessageEl) welcomeMessageEl.textContent = `Welcome, ${displayNameForWelcome}!`;
-        if (welcomeAvatarEl) welcomeAvatarEl.textContent = userProfile.avatar || '👋'; // Use local avatar
+        if (welcomeAvatarEl) welcomeAvatarEl.src = userProfile.avatar || 'image1.png'; // Use local avatar image
 
         if (appSettings.budgetMode === 'shared') {
             console.log("User logged in AND in Shared Mode.");
@@ -113,15 +113,15 @@ auth.onAuthStateChanged(async user => {
         // Reset UI to guest/logged-out state
         if (profileEmailDisplay) profileEmailDisplay.textContent = '';
         if (profileNameDisplay) profileNameDisplay.textContent = 'Guest';
-        if (welcomeAvatarEl) welcomeAvatarEl.textContent = '👋';
+        if (welcomeAvatarEl) welcomeAvatarEl.src = 'image1.png'; // Default avatar image on logout
         if (welcomeMessageEl) welcomeMessageEl.textContent = `Welcome, Guest!`;
         
         // Also reset the local userProfile object for consistency on logout
         userProfile.name = 'Guest';
         userProfile.email = ''; // Clear email from local profile as well
-        userProfile.avatar = '👋';
+        userProfile.avatar = 'image1.png'; // Default avatar image
         saveUserProfile(); // Save this guest state to localStorage
-
+        
         // Regardless of mode, if no Firebase user, operate on localStorage data
         monthlyData = JSON.parse(localStorage.getItem('monthlyData')) || {};
         // Full sanitization for monthlyData from localStorage
@@ -157,6 +157,7 @@ auth.onAuthStateChanged(async user => {
     // Update auth UI visibility based on the current mode and user object (currentUser could be null here)
     updateAuthUIVisibility();
 });
+
 
 // service-worker.js registration (added here for completeness, usually in a separate file)
     if ('serviceWorker' in navigator) {
@@ -742,8 +743,8 @@ function renderDailyBarChart() {
     let currentMonth = new Date(); // Represents the month being viewed
 
     // User Profile and App Settings
-    let userProfile = JSON.parse(localStorage.getItem('userProfile')) || { name: 'Guest', avatar: ' ', email: '' };
-    let appSettings = JSON.parse(localStorage.getItem('appSettings')) || {
+   let userProfile = JSON.parse(localStorage.getItem('userProfile')) || { name: 'Guest', avatar: 'image1.png', email: '' };
+let appSettings = JSON.parse(localStorage.getItem('appSettings')) || {
         currency: 'INR',
         defaultPaymentApp: 'GPay',
         notifications: [],
@@ -1131,6 +1132,28 @@ function toggleDaikoInsightSpeech() {
                 fundsImported: false
             };
         }
+         let walletFund = monthlyData[monthYear].categories.find(cat => cat.name === 'Wallet' && cat.isDefaultWallet);
+    if (!walletFund) {
+        walletFund = {
+            id: 'default_wallet_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9), // Unique ID
+            name: 'Wallet',
+            initialBalance: monthlyData[monthYear].income, // Initialized with current income
+            balance: monthlyData[monthYear].income,      // Balance also reflects this
+            spent: 0,
+            type: 'expense',
+            deductionType: 'manual',
+            isDefaultWallet: true, // Custom flag to identify this special fund
+            isDeletable: false,    // Make it non-deletable
+            isEditable: false      // Restrict certain edits (like name/type)
+        };
+        monthlyData[monthYear].categories.unshift(walletFund); // Add to the beginning
+    } else {
+        // If income changes, wallet's reference to it might need an update IF it's the only source
+        // This logic will be handled more robustly in setMonthlyIncome and fund creation/deletion
+    }
+
+
+
         monthlyData[monthYear].income = parseFloat(monthlyData[monthYear].income) || 0;
         return monthlyData[monthYear];
     }
@@ -1715,13 +1738,14 @@ function render() {
     const renderFundAsTablet = (fund, originalIndex) => { // Use originalIndex from main categories array
         const fundTablet = document.createElement('div');
         fundTablet.className = 'fund-tablet';
+        
         // fundTablet.dataset.fundIndex = originalIndex; // Using originalIndex for consistency if edit uses it
         fundTablet.onclick = () => openEditFundModal(originalIndex); // Pass original index
 
         const dueDayText = (fund.deductionType === 'auto' && fund.dueDay)
                         ? `<div class="fund-due-day">Due: ${formatDueDate(fund.dueDay, currentMonth)}</div>`
                         : '';
-
+        
         let amountDisplay;
         let bottomText = '';
 
@@ -1784,17 +1808,20 @@ function render() {
     }
     
     // Populate dropdowns
-    if (paySelect) { // Ensure paySelect exists
+if (paySelect) { // Ensure paySelect exists
+        // It's good practice to clear the select box before populating
+        paySelect.innerHTML = ''; 
+
         categories.forEach((cat, index) => {
-            // MODIFIED CONDITION TO INCLUDE MANUAL INVESTMENT FUNDS:
+            // Condition to include manual expense and manual investment funds
             if (
                 (cat.type === 'expense' && cat.deductionType === 'manual') || 
                 (cat.type === 'investment' && cat.deductionType === 'manual')
             ) {
-                // Ensure we use the correct index from the main 'categories' array
-                // if 'cat' comes from a pre-filtered list, ensure 'index' is its original index.
-                // Assuming 'categories' here is the full, unfiltered list for the current month.
-                paySelect.innerHTML += `<option value='${index}'>${cat.name} (${currentCurrencySymbol}${cat.balance.toFixed(2)})</option>`;
+                // Check if the current category is 'Wallet' to make it the default
+                const isSelected = cat.name === 'Wallet' ? 'selected' : '';
+                
+                paySelect.innerHTML += `<option value='${index}' ${isSelected}>${cat.name} (${currentCurrencySymbol}${cat.balance.toFixed(2)})</option>`;
             }
         });
     }
@@ -1912,6 +1939,36 @@ function render() {
             if (incomeFromBot === null) incomeInput.focus();
             return false;
         }
+        
+         const oldIncome = currentMonthData.income;
+    currentMonthData.income = income;
+
+    // Update Wallet fund
+    let walletFund = currentMonthData.categories.find(cat => cat.isDefaultWallet);
+    if (walletFund) {
+        // Calculate total allocated to other funds
+        const totalAllocatedToOtherFunds = currentMonthData.categories
+            .filter(cat => !cat.isDefaultWallet)
+            .reduce((sum, cat) => sum + cat.initialBalance, 0);
+
+        walletFund.initialBalance = income; // Wallet's initial capacity is the income
+        walletFund.balance = income - totalAllocatedToOtherFunds - walletFund.spent; // Current usable balance
+    }
+
+    addToHistory({
+        type: 'income_set',
+        amount: income,
+        oldAmount: oldIncome,
+        description: `Monthly income set/updated to <span class="math-inline">\{currentCurrencySymbol\}</span>{income.toFixed(2)}`
+    });
+    showToast(`Monthly income updated to <span class="math-inline">\{currentCurrencySymbol\}</span>{income.toFixed(2)}`);
+    if (incomeFromBot === null) incomeInput.value = income.toFixed(2);
+
+    render();
+
+
+
+
 
         const tutorialActiveAndIncomeStep = localStorage.getItem('tutorialShown') !== 'true' && currentTutorialStep === 0;
 
@@ -1965,7 +2022,7 @@ async function createFundFromModal(fundDetailsFromBot = null) {
 
     let deductionType = 'manual'; // Default, especially for personal_expense
     let dueDay = null;
-
+    
     // Income check and auto-deduct details are only relevant for non-personal funds
     if (fundType !== 'personal_expense') {
         const mainCurrentMonthData = getCurrentMonthData(); // For checking income
@@ -2027,6 +2084,32 @@ async function createFundFromModal(fundDetailsFromBot = null) {
         dueDay: (fundType !== 'personal_expense' && deductionType === 'auto') ? dueDay : null,
         isPersonal: fundType === 'personal_expense' // Flag to identify personal funds
     };
+    
+    if (!newFund.isDefaultWallet && newFund.initialBalance > 0) {
+    const mainCurrentMonthData = getCurrentMonthData(); // Ensure current month data is fresh
+    let walletFund = mainCurrentMonthData.categories.find(cat => cat.isDefaultWallet);
+    if (walletFund) {
+        if (walletFund.balance >= newFund.initialBalance) {
+            walletFund.balance -= newFund.initialBalance;
+            // Optionally, log this internal "transfer" or adjustment to Wallet's history or a specific log
+            addToHistory({
+                type: 'wallet_adjustment_create_fund',
+                amount: newFund.initialBalance,
+                fundName: newFund.name,
+                description: `Allocated <span class="math-inline">\{currentCurrencySymbol\}</span>{newFund.initialBalance.toFixed(2)} from Wallet to ${newFund.name}.`
+            });
+        } else {
+            if (!fundDetailsFromBot) await showAlert(`Insufficient balance in Wallet to create fund '${newFund.name}' with amount <span class="math-inline">\{currentCurrencySymbol\}</span>{newFund.initialBalance.toFixed(2)}. Wallet balance: <span class="math-inline">\{currentCurrencySymbol\}</span>{walletFund.balance.toFixed(2)}`);
+            return false; // Prevent fund creation
+        }
+    } else {
+        // This case should ideally not happen if getCurrentMonthData initializes Wallet
+        if (!fundDetailsFromBot) await showAlert('Error: Default Wallet fund not found. Cannot allocate funds.');
+        return false;
+    }
+}
+
+
 
     if (fundType !== 'personal_expense' && deductionType === 'auto') {
         newFund.emiAmount = amount;
@@ -2153,35 +2236,75 @@ async function createFundFromModal(fundDetailsFromBot = null) {
     }
 
 
-    async function deleteFundFromEditModal() {
-        const currentMonthData = getCurrentMonthData();
-        const fundName = editingFundNameOriginalInput.value;
+ async function deleteFundFromEditModal() {
+    const currentMonthData = getCurrentMonthData(); // Ensures 'Wallet' fund exists if needed
+    const fundNameToDelete = document.getElementById('editingFundNameOriginal').value; // Get the original name
 
-        const confirmed = await showConfirm(`Are you sure you want to delete the fund '${fundName}'? This action cannot be undone.`, 'Delete Fund');
-        if (confirmed) {
-            const actualIndex = currentMonthData.categories.findIndex(cat => cat.name === fundName);
-            if (actualIndex !== -1) {
-                const deletedFund = currentMonthData.categories.splice(actualIndex, 1)[0];
-                addToHistory({
-                    type: 'fund_deletion',
-                    fundName: deletedFund.name,
-                    initialBalance: deletedFund.initialBalance,
-                    fundType: deletedFund.type,
-                    deductionType: deletedFund.deductionType,
-                    emiAmount: deletedFund.emiAmount,
-                    balance: deletedFund.balance,
-                    spent: deletedFund.spent,
-                    dueDay: deletedFund.dueDay,
-                    description: `Deleted fund '${deletedFund.name}' from edit modal.`
-                });
-                showToast(`Fund '${fundName}' deleted.`);
-                closeEditFundModal();
-                render();
-            } else {
-                showAlert(`Error: Could not find fund '${fundName}' to delete.`, "Delete Error");
-            }
-        }
+    const fundIndexToDelete = currentMonthData.categories.findIndex(cat => cat.name === fundNameToDelete);
+
+    if (fundIndexToDelete === -1) {
+        await showAlert(`Error: Could not find fund '${fundNameToDelete}' to delete. It might have been renamed or already deleted. Please refresh or check.`, "Delete Error");
+        closeEditFundModal(); // Close the modal as the context is lost
+        return;
     }
+
+    const fundToDelete = currentMonthData.categories[fundIndexToDelete];
+
+    // Prevent deletion of the default 'Wallet' fund
+    if (fundToDelete.isDefaultWallet) {
+        await showAlert("The 'Wallet' fund cannot be deleted.", "Action Not Allowed");
+        return;
+    }
+
+    const currentCurrencySymbol = currencySymbols[appSettings.currency];
+    const confirmed = await showConfirm(
+        `Are you sure you want to delete the fund '${fundToDelete.name}'? Its current balance of ${currentCurrencySymbol}${fundToDelete.balance.toFixed(2)} will be returned to your Wallet. This action cannot be undone.`,
+        'Confirm Delete Fund'
+    );
+
+    if (confirmed) {
+        // Amount to return to the wallet. This is typically the remaining balance.
+        const amountToReturn = fundToDelete.balance;
+
+        // Remove the fund from the categories array
+        currentMonthData.categories.splice(fundIndexToDelete, 1);
+
+        // Add the amount back to the Wallet fund
+        let walletFund = currentMonthData.categories.find(cat => cat.isDefaultWallet);
+        if (walletFund) {
+            walletFund.balance += amountToReturn;
+            addToHistory({
+                type: 'wallet_adjustment_delete_fund',
+                amount: amountToReturn,
+                fundName: fundToDelete.name, // Name of the fund that was deleted
+                description: `Returned ${currentCurrencySymbol}${amountToReturn.toFixed(2)} to Wallet from deleted fund '${fundToDelete.name}'.`
+            });
+        } else {
+            // This should ideally not happen if getCurrentMonthData ensures Wallet exists
+            console.error("Default Wallet fund not found when trying to return balance.");
+            await showAlert("Error: Default Wallet not found. Balance could not be returned automatically.", "Wallet Error");
+        }
+
+        // Add to history for the fund deletion itself
+        addToHistory({
+            type: 'fund_deletion',
+            fundName: fundToDelete.name, // Log the name of the deleted fund
+            initialBalance: fundToDelete.initialBalance,
+            fundType: fundToDelete.type,
+            deductionType: fundToDelete.deductionType,
+            emiAmount: fundToDelete.emiAmount,
+            balanceAtDeletion: fundToDelete.balance, // Log balance at time of deletion
+            spentAtDeletion: fundToDelete.spent,     // Log spent amount at time of deletion
+            dueDay: fundToDelete.dueDay,
+            returnedToWallet: amountToReturn, // Explicitly log amount returned
+            description: `Deleted fund '${fundToDelete.name}'. Returned ${currentCurrencySymbol}${amountToReturn.toFixed(2)} to Wallet.`
+        });
+
+        showToast(`Fund '${fundToDelete.name}' deleted and balance returned to Wallet.`);
+        closeEditFundModal();
+        render(); // Update the UI
+    }
+}
 
     // --- QR Scanner Modal Functions - UPDATED with Debugging ---
 function openQrScannerModal() {
@@ -3857,24 +3980,23 @@ function updateUserTimezone() {
 
 
 
-    function renderUserProfile() {
-        document.getElementById('welcomeMessage').textContent = `Welcome, ${userProfile.name}!`;
-        document.getElementById('welcomeAvatar').textContent = userProfile.avatar;
-        document.getElementById('userNameInput').value = userProfile.name;
-        document.getElementById('userEmailInput').value = userProfile.email;
-        document.getElementById('profileAvatarDisplay').textContent = userProfile.avatar;
-        document.getElementById('profileNameDisplay').textContent = userProfile.name;
-        document.getElementById('profileEmailDisplay').textContent = userProfile.email;
+function renderUserProfile() {
+    document.getElementById('welcomeMessage').textContent = `Welcome, ${userProfile.name}!`;
+    document.getElementById('welcomeAvatar').src = userProfile.avatar;
+    document.getElementById('userNameInput').value = userProfile.name;
+    document.getElementById('userEmailInput').value = userProfile.email;
+    document.getElementById('profileAvatarDisplay').src = userProfile.avatar;
+    document.getElementById('profileNameDisplay').textContent = userProfile.name;
+    document.getElementById('profileEmailDisplay').textContent = userProfile.email;
 
-        document.querySelectorAll('.avatar-option').forEach(option => {
-            if (option.dataset.emoji === userProfile.avatar) {
-                option.classList.add('selected');
-            } else {
-                option.classList.remove('selected');
-            }
-        });
-    }
-
+    document.querySelectorAll('.avatar-image-option').forEach(option => {
+        if (option.dataset.image === userProfile.avatar) {
+            option.classList.add('selected');
+        } else {
+            option.classList.remove('selected');
+        }
+    });
+}
     function updateUserProfile() {
         userProfile.name = document.getElementById('userNameInput').value.trim();
         userProfile.email = document.getElementById('userEmailInput').value.trim();
@@ -3929,11 +4051,20 @@ function updateUserTimezone() {
         }
     }
 
- async function showNextTutorialStep() {
+  function markTutorialAsComplete() {
+    localStorage.setItem('tutorialShown', 'true');
+    console.log("Tutorial marked as complete.");
+    // Optionally clean up any highlights if they are still active
+    document.querySelectorAll('.highlight-tutorial').forEach(el => el.classList.remove('highlight-tutorial'));
+}
+
+async function showNextTutorialStep() {
         if (localStorage.getItem('tutorialShown') === 'true') {
             console.log("Tutorial already marked as complete, skipping.");
             return;
         }
+        
+          markTutorialAsComplete();
 
         if (currentTutorialStep >= tutorialSteps.length) {
             markTutorialAsComplete(); // Call the new function here
@@ -3975,12 +4106,7 @@ function updateUserTimezone() {
         // This structure seems to be the intended flow.
     }
 
-    function markTutorialAsComplete() {
-    localStorage.setItem('tutorialShown', 'true');
-    console.log("Tutorial marked as complete.");
-    // Optionally clean up any highlights if they are still active
-    document.querySelectorAll('.highlight-tutorial').forEach(el => el.classList.remove('highlight-tutorial'));
-}
+   
 
     async function startTutorial() {
         currentTutorialStep = 0;
@@ -4053,107 +4179,204 @@ function openEditFundModal(index) {
         }
     }
 
-async function saveEditedFund() {
-    if (fundIndexToEdit === -1) return;
 
-    const currentMonthData = getCurrentMonthData();
-    const fundToEdit = currentMonthData.categories[fundIndexToEdit];
+
+// Inside script.js
+
+async function saveUnifiedEditedFund() {
+    if (!currentUnifiedFundId) {
+        showAlert("Error: No fund selected for editing.");
+        return;
+    }
+
+    const currentMonthData = getCurrentMonthData(); // Ensures Wallet fund is available
+    const fundToEdit = currentMonthData.categories.find(cat => cat.id === currentUnifiedFundId);
+    const walletFund = currentMonthData.categories.find(cat => cat.isDefaultWallet);
 
     if (!fundToEdit) {
-        await showAlert("Error: Could not find the fund to edit. It might have been modified or deleted.", "Edit Error");
-        closeEditFundModal();
-        render();
+        await showAlert("Error: Could not find the fund to edit.", "Edit Error");
+        closeUnifiedFundModal();
         return;
     }
 
-    const originalFundDetailsForHistory = { ...fundToEdit }; // Capture details before any change
+    if (fundToEdit.isDefaultWallet) {
+        await showAlert("The Wallet fund's core properties cannot be edited here.", "Action Not Allowed");
+        // Allow only name change if that's desired, otherwise just close.
+        // For now, preventing any edit to wallet's core financial properties.
+        const newWalletName = document.getElementById('unifiedEditFundName').value.trim();
+        if (newWalletName && newWalletName !== walletFund.name) {
+            const oldName = walletFund.name;
+            walletFund.name = newWalletName;
+            addToHistory({
+                type: 'fund_edit',
+                fundId: walletFund.id,
+                fundNameBeforeEdit: oldName,
+                changedProperties: { name: { from: oldName, to: newWalletName } },
+                description: `Default Wallet name changed from '${oldName}' to '${newWalletName}'.`
+            });
+            showToast("Wallet name updated.");
+            render();
+        }
+        // closeUnifiedFundModal(); // Or hide config section
+        hideUnifiedConfigurationSection();
+        return;
+    }
 
-    const newName = editFundNameInput.value.trim();
-    // newAmount is NO LONGER read from editFundAmountInput for changing value
-    const newType = document.querySelector('input[name="editFundType"]:checked').value;
-    const newDeductionType = editIsAutoDeductCheckbox.checked ? 'auto' : 'manual';
+    if (!walletFund) {
+        await showAlert("Critical Error: Default Wallet fund not found.", "System Error");
+        closeUnifiedFundModal();
+        return;
+    }
+
+    const originalFundDetailsForHistory = JSON.parse(JSON.stringify(fundToEdit)); // Deep copy for history
+
+    // Get new values from the modal
+    const newName = document.getElementById('unifiedEditFundName').value.trim();
+    
+    // **NEW: Read the potentially changed amount**
+    // Assuming 'unifiedEditFundAmountDisplay' is now editable for initialBalance/emiAmount
+    const newAmountString = document.getElementById('unifiedEditFundAmountDisplay').value;
+    const newMainAmount = parseFloat(newAmountString); // This is the new initialBalance or emiAmount
+
+    const newType = document.querySelector('input[name="unifiedEditFundType"]:checked').value;
+    const newDeductionType = document.getElementById('unifiedEditIsAutoDeduct').checked ? 'auto' : 'manual';
     let newDueDay = null;
-
-    if (!newName) {
-        await showAlert('Fund name cannot be empty.');
-        return;
-    }
-    if (newName.toLowerCase() !== fundToEdit.name.toLowerCase() && currentMonthData.categories.some((cat, idx) => idx !== fundIndexToEdit && cat.name.toLowerCase() === newName.toLowerCase())) {
-        await showAlert(`A fund with the name '${newName}' already exists. Please choose a different name.`);
-        return;
-    }
-
-    // Update name
-    fundToEdit.name = newName;
-    fundToEdit.type = newType; // User can change between expense/investment
-
-    // Handle changes in deductionType and dueDay
     if (newDeductionType === 'auto') {
-        const dueDayValue = parseInt(editFundDueDayInput.value);
-        if (editFundDueDayInput.value && (isNaN(dueDayValue) || dueDayValue < 1 || dueDayValue > 31)) {
-            await showAlert('Please enter a valid Due Day (1-31) for auto-deduct or leave it blank.');
-            return;
-        }
-        newDueDay = editFundDueDayInput.value ? parseInt(editFundDueDayInput.value) : null;
-
-        if (fundToEdit.deductionType === 'manual') { // Changing from Manual to Auto
-            console.log(`Changing fund '${fundToEdit.name}' from Manual to Auto.`);
-            // Use existing initialBalance as the new EMI amount
-            fundToEdit.emiAmount = fundToEdit.initialBalance; // Or a default if initialBalance is 0? For now, use initialBalance.
-            if (fundToEdit.emiAmount <= 0) {
-                 await showAlert(`Cannot change to Auto-Deduct. The fund's original value (which would become EMI) is ${fundToEdit.emiAmount.toFixed(2)}. Auto-Deduct EMI must be positive. Delete and recreate if needed.`, "Type Change Error");
-                 // Revert UI changes for deduction type if necessary before returning
-                 editIsAutoDeductCheckbox.checked = false; // Revert checkbox
-                 toggleEditDueDayVisibility();
-                 return;
+        const dueDayValueStr = document.getElementById('unifiedEditFundDueDay').value;
+        if (dueDayValueStr) {
+            const dueDayValue = parseInt(dueDayValueStr);
+            if (isNaN(dueDayValue) || dueDayValue < 1 || dueDayValue > 31) {
+                await showAlert('Please enter a valid Due Day (1-31) for auto-deduct or leave it blank.'); return;
             }
-            // When converting to auto, its specific "balance" for this EMI is 0, and "spent" is the EMI for the month.
-            fundToEdit.spent = fundToEdit.emiAmount;
-            fundToEdit.balance = 0; 
+            newDueDay = dueDayValue;
         }
-        // If it was already auto, only dueDay and potentially emiAmount (if we allowed it) would change.
-        // Since emiAmount is not editable, only dueDay changes if it was already auto.
-        fundToEdit.deductionType = 'auto';
-        fundToEdit.dueDay = newDueDay;
+    }
 
-    } else { // newDeductionType is 'manual'
-        if (fundToEdit.deductionType === 'auto') { // Changing from Auto to Manual
-            console.log(`Changing fund '${fundToEdit.name}' from Auto to Manual.`);
-            // Use existing emiAmount as the new initialBalance
-            fundToEdit.initialBalance = fundToEdit.emiAmount;
-            // Reset spent and balance based on new manual type
-            if (fundToEdit.type === 'investment') {
-                fundToEdit.spent = fundToEdit.initialBalance; // Assume full initial amount is "invested"
-                fundToEdit.balance = 0;
-            } else { // Manual Expense
-                fundToEdit.spent = 0; // Reset spent for a newly manual expense fund
-                fundToEdit.balance = fundToEdit.initialBalance;
-            }
+    // --- Validations ---
+    if (!newName) { await showAlert('Fund name cannot be empty.'); return; }
+    if (newName.toLowerCase() !== fundToEdit.name.toLowerCase() &&
+        currentMonthData.categories.some(cat => cat.id !== currentUnifiedFundId && cat.name.toLowerCase() === newName.toLowerCase())) {
+        await showAlert(`A fund with the name '${newName}' already exists.`); return;
+    }
+    if (isNaN(newMainAmount) || newMainAmount < 0) {
+        await showAlert('The fund amount must be a non-negative number.'); return;
+    }
+    if (newDeductionType === 'auto' && newMainAmount <= 0) {
+        await showAlert('Auto-Deduct/Auto-Invest amount must be positive.'); return;
+    }
+
+    // --- Calculate Difference in Allocation ---
+    let allocationDifference = 0;
+    let oldAllocatedAmount = 0;
+
+    if (fundToEdit.deductionType === 'manual') {
+        oldAllocatedAmount = fundToEdit.initialBalance;
+        if (newDeductionType === 'manual') {
+            allocationDifference = newMainAmount - fundToEdit.initialBalance;
+        } else { // Changing from Manual to Auto
+            allocationDifference = newMainAmount - fundToEdit.initialBalance; // New EMI vs old InitialBalance
         }
-        // If it was already manual, no monetary values change from this path as newAmount is not used.
-        // Only name, type could have changed.
+    } else { // fundToEdit.deductionType was 'auto'
+        oldAllocatedAmount = fundToEdit.emiAmount;
+        if (newDeductionType === 'auto') {
+            allocationDifference = newMainAmount - fundToEdit.emiAmount;
+        } else { // Changing from Auto to Manual
+            allocationDifference = newMainAmount - fundToEdit.emiAmount; // New InitialBalance vs old EMI
+        }
+    }
+
+    // --- Adjust Wallet Balance ---
+    if (allocationDifference !== 0) {
+        if (allocationDifference > 0) { // Increased allocation to this fund
+            if (walletFund.balance < allocationDifference) {
+                await showAlert(`Insufficient balance in Wallet to increase allocation. Wallet has ${currencySymbols[appSettings.currency]}${walletFund.balance.toFixed(2)}, needs ${currencySymbols[appSettings.currency]}${allocationDifference.toFixed(2)}.`);
+                return; // Stop the save
+            }
+            walletFund.balance -= allocationDifference;
+            addToHistory({
+                type: 'wallet_adjustment_edit_fund',
+                amount: allocationDifference,
+                fundName: newName,
+                description: `Wallet decreased by ${currencySymbols[appSettings.currency]}${allocationDifference.toFixed(2)} due to increased allocation for ${newName}.`
+            });
+        } else { // Decreased allocation to this fund (allocationDifference is negative)
+            walletFund.balance += Math.abs(allocationDifference);
+            addToHistory({
+                type: 'wallet_adjustment_edit_fund',
+                amount: Math.abs(allocationDifference), // Log positive amount returned
+                fundName: newName,
+                description: `Wallet increased by ${currencySymbols[appSettings.currency]}${Math.abs(allocationDifference.toFixed(2))} due to decreased allocation for ${newName}.`
+            });
+        }
+    }
+
+    // --- Update Fund Properties ---
+    fundToEdit.name = newName;
+    const previousType = fundToEdit.type; // For history/logic if needed
+    const previousDeductionType = fundToEdit.deductionType; // For history/logic
+    fundToEdit.type = newType;
+
+    if (newDeductionType === 'manual') {
+        const oldBalanceBeforeEdit = fundToEdit.balance; // Preserve current balance before overwriting initialBalance
+        const oldSpentBeforeEdit = fundToEdit.spent;
+
+        fundToEdit.initialBalance = newMainAmount;
         fundToEdit.deductionType = 'manual';
         fundToEdit.emiAmount = 0;
         fundToEdit.dueDay = null;
+
+        if (previousDeductionType === 'auto' || fundToEdit.initialBalance !== oldAllocatedAmount) {
+            // If type changed from auto OR if initialBalance itself was changed for a manual fund
+            if (fundToEdit.type === 'investment') {
+                fundToEdit.spent = fundToEdit.initialBalance; // Manual investment: initial amount is considered "spent" into it
+                fundToEdit.balance = 0; // Or how you define balance for manual investments
+            } else { // Manual Expense
+                // If it was converted from Auto, or if initialBalance changed, we need to decide how 'spent' and 'balance' are affected.
+                // Simplest: reset spent if initialBalance changed significantly, or if converted from auto.
+                // This assumes past transactions are still valid but the "envelope size" changed.
+                // A common approach is that 'spent' remains, and 'balance' adjusts.
+                // Balance = New Initial Balance - Existing Spent
+                fundToEdit.spent = oldSpentBeforeEdit; // Keep existing spent
+                // Recalculate balance: New Initial - Existing Spent
+                fundToEdit.balance = fundToEdit.initialBalance - fundToEdit.spent;
+            }
+        } else {
+            // If it was already manual and only name/type changed (not initialBalance)
+            // spent and balance would remain as they were.
+            // This path means allocationDifference was 0 and it was already manual.
+        }
+
+    } else { // newDeductionType is 'auto'
+        fundToEdit.emiAmount = newMainAmount;
+        fundToEdit.deductionType = 'auto';
+        fundToEdit.dueDay = newDueDay;
+        // For auto-deduct funds, initialBalance might be set to emiAmount for consistency,
+        // or it might represent a "total allocated for EMIs" concept if topped up.
+        // Let's assume initialBalance also reflects the new EMI amount for simplicity.
+        fundToEdit.initialBalance = newMainAmount;
+        fundToEdit.spent = fundToEdit.emiAmount; // Assume EMI is "spent" for the current month view
+        fundToEdit.balance = 0; // Auto-deduct funds often reflect 0 balance or over/under
     }
 
+    // --- Add History for the Fund Edit Itself ---
     addToHistory({
         type: 'fund_edit',
-        fundNameBeforeEdit: originalFundDetailsForHistory.name, // For clarity in history
-        changedProperties: { // Log what could have changed
+        fundId: fundToEdit.id,
+        fundNameBeforeEdit: originalFundDetailsForHistory.name,
+        changedProperties: {
             name: fundToEdit.name !== originalFundDetailsForHistory.name ? { from: originalFundDetailsForHistory.name, to: fundToEdit.name } : undefined,
+            amount: newMainAmount !== oldAllocatedAmount ? { from: oldAllocatedAmount, to: newMainAmount } : undefined,
             type: fundToEdit.type !== originalFundDetailsForHistory.type ? { from: originalFundDetailsForHistory.type, to: fundToEdit.type } : undefined,
             deductionType: fundToEdit.deductionType !== originalFundDetailsForHistory.deductionType ? { from: originalFundDetailsForHistory.deductionType, to: fundToEdit.deductionType } : undefined,
             dueDay: fundToEdit.dueDay !== originalFundDetailsForHistory.dueDay ? { from: originalFundDetailsForHistory.dueDay, to: fundToEdit.dueDay } : undefined,
-            // Note: Monetary values (initialBalance, emiAmount, spent, balance) might change *indirectly* if deductionType changes.
         },
-        description: `Fund '${originalFundDetailsForHistory.name}' settings updated. Name: '${fundToEdit.name}', Type: ${fundToEdit.type}, Deduction: ${fundToEdit.deductionType}.`
+        description: `Fund '${originalFundDetailsForHistory.name}' updated. New amount: ${currencySymbols[appSettings.currency]}${newMainAmount.toFixed(2)}.`
     });
-    showToast(`Fund '${fundToEdit.name}' updated.`);
-    closeEditFundModal();
-    render();
-}
 
+    showToast(`Fund '${fundToEdit.name}' updated.`);
+    render();
+    hideUnifiedConfigurationSection(); // Or closeUnifiedFundModal();
+}
     const notificationsDropdown = document.getElementById('notificationsDropdown');
     const notificationBadge = document.getElementById('notificationBadge');
 
@@ -5214,16 +5437,18 @@ if (howWasMyDayGraphContainer && howWasMyDayGraphToggleIcon) {
     } else {
         if(settingsDarkModeToggle) settingsDarkModeToggle.checked = false;
     }
+    
     if(settingsDarkModeToggle) settingsDarkModeToggle.addEventListener('change', toggleDarkMode);
 
     const avatarOptionsContainer = document.getElementById('avatarOptions');
     if(avatarOptionsContainer) avatarOptionsContainer.addEventListener('click', (event) => {
-        if (event.target.classList.contains('avatar-option')) {
-            selectAvatar(event.target.dataset.emoji);
+        if (event.target.classList.contains('avatar-image-option')) {
+            selectAvatar(event.target.dataset.image);
         }
     });
 
     const mainFaqContent = document.getElementById('faqContent');
+
     const settingsFaqContent = document.getElementById('faqContentSettings');
     if (mainFaqContent && settingsFaqContent) {
         settingsFaqContent.innerHTML = mainFaqContent.innerHTML;
