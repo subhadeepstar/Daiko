@@ -3,6 +3,6 @@
   "target": {
     "namespace": "android_app",
     "package_name": "app.daikufi.twa",
-    "sha256_cert_fingerprints": ["77:73:50:CD:10:5E:13:D0:28:6C:EB:02:44:E7:27:96:96:6A:C4:9A:B0:B6:D6:F3:8D:FB:EC:72:C9:3B:3B:8B"]
+    "sha256_cert_fingerprints": ["99:0F:54:1F:9A:07:EC:18:84:7B:F4:3B:80:12:5B:10:E6:11:BB:A2:C4:20:54:BA:68:9D:96:0E:63:85:6D:A0"]
   }
 }]
