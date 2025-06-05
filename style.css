@@ -154,7 +154,18 @@ h3#dashboard-section {
     text-transform: none;
     letter-spacing: normal;
     margin-bottom: 18px;
+    
+    /* Add the following lines to use Flexbox for alignment */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px; /* Adds a nice space between the avatar and the text */
 }
+
+
+
+/* Add this new rule to style the image inside the button */
+
 /* Optional: Add if you need specific styling for the graph container or canvas */
 #dailyExpensesGraphContainer {
     /* padding: 10px; /* Example if more padding is needed */
@@ -195,6 +206,41 @@ h3#dashboard-section {
   transition: transform 0.2s ease-in-out, background-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, border 0.3s ease;
   border: 1px solid transparent; /* Keep transparent unless warning */
   position: relative;
+}
+
+.settings-group label:not(h5) { display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-color); font-size: 0.9rem; }
+.avatar-options { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; }
+
+/* New Class for Image Avatars */
+.avatar-image-option {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%; /* This makes the image circular */
+    border: 3px solid transparent; /* Start with a transparent border */
+    cursor: pointer;
+    object-fit: cover; /* Ensures the image covers the area without distortion */
+    transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.avatar-image-option:hover {
+    transform: scale(1.05);
+}
+
+.avatar-option { font-size: 28px; cursor: pointer; padding: 5px; border: 2px solid transparent; border-radius: 8px; transition: border-color 0.2s ease; }
+
+/* Modified selected class to work with images */
+.avatar-image-option.selected { 
+    border-color: var(--primary-color);
+    transform: scale(1.05);
+}
+
+.profile-display { text-align: center; margin-bottom: 20px; }
+/* Modified profile-avatar class for better image display */
+.profile-avatar {
+    font-size: 50px; /* Fallback for emoji, won't affect img */
+    width: 60px; /* Specific size for the main display avatar */
+    height: 60px; /* Specific size for the main display avatar */
+    margin-bottom: 10px;
 }
 
 /* Fund Grid Layout & Tablets - Increased rounding */
@@ -761,9 +807,33 @@ body.dark-mode .dark-mode-toggle input:checked + .slider { background-color: var
 .modal-buttons { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
 .modal-buttons button { width: auto; min-width: 90px; padding: 10px 15px; font-size: 14px; border-radius: 16px; margin-top: 0; }
 
-.fab, .chatbot-fab { position: fixed; width: 50px; height: 50px; border-radius: 25px; font-size: 24px; box-shadow: var(--shadow-depth-button); transition: background-color 0.3s, transform 0.2s ease-in-out, box-shadow 0.2s ease; display: flex; justify-content: center; align-items: center; border: none; z-index: 900; }
+.fab, .chatbot-fab {
+    position: fixed;
+    width: 50px;
+    height: 50px;
+    border-radius: 25px;
+    font-size: 24px;
+    box-shadow: var(--shadow-depth-button);
+    transition: background-color 0.3s, transform 0.2s ease-in-out, box-shadow 0.2s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: none;
+    z-index: 900;
+}
+
 .fab { bottom: 80px; right: 15px; background-image: linear-gradient(to right, var(--gradient-primary-start) 0%, var(--gradient-primary-end) 51%, var(--gradient-primary-start) 100%); color: white;}
-.chatbot-fab { bottom: 80px; left: 15px; background-image: linear-gradient(to right, var(--gradient-secondary-start) 0%, var(--gradient-secondary-end) 51%, var(--gradient-secondary-start) 100%); color: white; cursor: pointer; }
+.chatbot-fab {
+    bottom: 80px;
+    left: 15px;
+    /* We replace the gradient with the background image */
+    background-image: url('daiko.png');
+    background-size: cover; /* This makes the image fill the button */
+    background-position: center; /* This centers the image */
+    color: white;
+    cursor: pointer;
+}
+
 /* Ensure chatbot fab text color is correct for light mode if secondary gradient is light */
 body:not(.dark-mode) .chatbot-fab {
     color: #1F2937; /* Deep Charcoal Gray text on Sky Aqua gradient */
