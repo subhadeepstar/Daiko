@@ -1,135 +1,143 @@
 // service-worker.js
 
-const CACHE_NAME = 'daikufi-cache-v1'; // Updated cache name
-const urlsToCache = [
-  '/', // Cache the root path
-  '/index.html', // Your main HTML file
-  '/style.css',  // Your CSS file
-  '/script.js',  // Your JavaScript file
-  '/manifest.json', // Your manifest file
-  '/budget.png',    // Your app icon
-
-  // External libraries (keep if you want them cached by the service worker for app shell)
-  // Note: Browsers are also good at caching these, but including them ensures they're part of the SW cache.
-  'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap', // From your style.css
-  'https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap', // From your index.html
-  'https://cdn.jsdelivr.net/npm/chart.js',
-  'https://unpkg.com/ml5@latest/dist/ml5.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js',
-  'https://unpkg.com/html5-qrcode@2.0.9/dist/html5-qrcode.min.js'
+const CACHE_NAME = 'daikufi-cache-v1.1'; // Increment version for updates
+const PRECACHE_ASSETS = [
+  '/', // Alias for index.html
+  '/index.html',
+  '/style.css',
+  '/script.js',
+  // Main app icon
+  '/budget.png',
+  // Avatar images
+  '/image1.png',
+  '/image2.png',
+  '/image3.png',
+  '/image4.png',
+  '/image5.png',
+  '/image6.png',
+  // Bot icon
+  '/daiko.png',
+  // External libraries (consider caching if critical and not frequently updated by CDN)
+  // It's often better to let the browser cache these from CDNs,
+  // but if offline capability for these is paramount, you can add them.
+  // For example:
+  // 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap',
+  // 'https://cdn.jsdelivr.net/npm/chart.js',
+  // 'https://unpkg.com/ml5@latest/dist/ml5.min.js',
+  // 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+  // 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js',
+  // 'https://unpkg.com/html5-qrcode@2.0.9/dist/html5-qrcode.min.js',
+  // 'https://www.gstatic.com/firebasejs/11.8.1/firebase-app-compat.js',
+  // 'https://www.gstatic.com/firebasejs/11.8.1/firebase-auth-compat.js',
+  // 'https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore-compat.js',
+  // 'https://www.gstatic.com/firebasejs/11.8.1/firebase-analytics-compat.js'
 ];
 
-// Install event: Cache core assets
-self.addEventListener('install', event => {
-  console.log('Service Worker (DaikuFi): Installing...');
+// Install event: precache core assets
+self.addEventListener('install', (event) => {
+  console.log('[Service Worker] Install event in progress.');
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => {
-        console.log('Service Worker (DaikuFi): Caching app shell');
-        
-        const cachePromises = urlsToCache.map(urlToCache => {
-          // For external URLs (CDNs), fetch with 'reload' to bypass HTTP cache during SW install.
-          // For local assets, default cache behavior is usually fine.
-          const request = new Request(urlToCache, urlToCache.startsWith('http') ? {cache: 'reload'} : {});
-          return fetch(request)
-            .then(response => {
-              if (!response.ok && urlToCache.startsWith('http')) {
-                // Don't fail the entire SW install for a non-critical CDN asset if it fails to fetch initially
-                console.warn(`Service Worker (DaikuFi): Failed to fetch and cache ${urlToCache} during install. It might be unavailable offline initially. Status: ${response.status}`);
-                return Promise.resolve(); // Resolve promise so other caching can continue
-              }
-              // If response is OK, or it's a local asset (where fetch might not be needed if already in HTTP cache for SW)
-              return cache.put(urlToCache, response);
-            })
-            .catch(error => {
-              console.warn(`Service Worker (DaikuFi): Error caching ${urlToCache}. ${error}`);
-              return Promise.resolve(); // Resolve promise so other caching can continue
-            });
-        });
-        return Promise.all(cachePromises);
+      .then((cache) => {
+        console.log('[Service Worker] Precaching core assets:', PRECACHE_ASSETS);
+        // Use addAll for atomic operation. If one fails, all fail.
+        // For external URLs, ensure they support CORS or use cache.add() individually with a Request object {mode: 'no-cors'}
+        // but 'no-cors' responses are opaque and less useful for actual serving.
+        // Best to ensure CDNs have proper CORS or rely on browser caching for them.
+        return cache.addAll(PRECACHE_ASSETS.filter(url => !url.startsWith('http'))); // Only cache local assets initially
       })
       .then(() => {
-        console.log('Service Worker (DaikuFi): Install completed.');
-        return self.skipWaiting(); // Activate the new service worker immediately
+        console.log('[Service Worker] Precache successful. Activating now...');
+        return self.skipWaiting(); // Force the waiting service worker to become the active service worker
       })
       .catch(error => {
-        console.error('Service Worker (DaikuFi): Caching failed critically during install:', error);
+        console.error('[Service Worker] Precache failed:', error);
       })
   );
 });
 
-// Activate event: Clean up old caches
-self.addEventListener('activate', event => {
-  console.log('Service Worker (DaikuFi): Activating...');
+// Activate event: clean up old caches
+self.addEventListener('activate', (event) => {
+  console.log('[Service Worker] Activate event in progress.');
   event.waitUntil(
-    caches.keys().then(cacheNames => {
+    caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.map(cache => {
-          if (cache !== CACHE_NAME) {
-            console.log('Service Worker (DaikuFi): Clearing old cache:', cache);
-            return caches.delete(cache);
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('[Service Worker] Deleting old cache:', cacheName);
+            return caches.delete(cacheName);
           }
         })
       );
     }).then(() => {
-      console.log('Service Worker (DaikuFi): Activated and old caches cleared.');
-      return self.clients.claim(); // Take control of all open clients
+      console.log('[Service Worker] Claiming clients.');
+      return self.clients.claim(); // Take control of all open clients without waiting for reload
     })
   );
 });
 
-// Fetch event: Serve cached content when offline, or fetch from network
-self.addEventListener('fetch', event => {
-  const requestUrl = new URL(event.request.url);
+// Fetch event: serve assets from cache or network
+self.addEventListener('fetch', (event) => {
+  // For Firebase and other third-party API calls, usually best to go network-first or network-only.
+  // Let Firebase SDK handle its own offline persistence.
+  if (event.request.url.includes('firestore.googleapis.com') ||
+      event.request.url.includes('firebaseapp.com') ||
+      event.request.url.includes('googleusercontent.com') || // For Google Sign-In assets
+      event.request.url.includes('googleapis.com/identitytoolkit') || // Firebase Auth
+      event.request.url.includes('en.wikipedia.org')) { // Wikipedia API
+    event.respondWith(fetch(event.request));
+    return;
+  }
 
-  // For navigation requests (e.g., loading index.html or root)
+  // For navigation requests (HTML pages), try network first, then cache.
+  // This ensures users get the latest HTML if online, but can still access if offline.
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      caches.match(event.request.url, {cacheName: CACHE_NAME}) // Try matching the full URL first
-        .then(cachedResponse => {
-          if (cachedResponse) return cachedResponse;
-          // Fallback to /index.html if the specific navigation URL isn't cached (e.g. for root '/')
-          return caches.match('/index.html', {cacheName: CACHE_NAME}).then(indexCache => {
-            if(indexCache) return indexCache;
-            // If nothing is cached, try network
-            return fetch(event.request).catch(() => {
-              // Optional: return a generic offline HTML page if network fails
-              // return caches.match('/offline.html'); 
-              console.error('Service Worker (DaikuFi): Navigate request failed, no cache match.');
+      fetch(event.request)
+        .then(response => {
+          // If successful, cache the response for offline use
+          if (response.ok) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(event.request, responseToCache);
             });
-          });
+          }
+          return response;
+        })
+        .catch(() => {
+          // If network fails, try to serve from cache
+          return caches.match(event.request)
+            .then(cachedResponse => {
+              return cachedResponse || caches.match('/index.html'); // Fallback to home page
+            });
         })
     );
     return;
   }
 
-  // Cache-First strategy for assets in our urlsToCache list (or matching by pathname)
-  if (urlsToCache.includes(requestUrl.href) || urlsToCache.includes(requestUrl.pathname)) {
-    event.respondWith(
-      caches.match(event.request, {cacheName: CACHE_NAME}).then(cachedResponse => {
-        return cachedResponse || fetch(event.request).then(networkResponse => {
+  // For other static assets (CSS, JS, images), use cache-first strategy.
+  event.respondWith(
+    caches.match(event.request)
+      .then((cachedResponse) => {
+        if (cachedResponse) {
+          // console.log('[Service Worker] Serving from cache:', event.request.url);
+          return cachedResponse;
+        }
+        // console.log('[Service Worker] Fetching from network and caching:', event.request.url);
+        return fetch(event.request).then((networkResponse) => {
           if (networkResponse && networkResponse.ok) {
             const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then(cache => {
-              cache.put(event.request, responseToCache);
-            });
+            caches.open(CACHE_NAME)
+              .then((cache) => {
+                cache.put(event.request, responseToCache);
+              });
           }
           return networkResponse;
         }).catch(error => {
-          console.error('Service Worker (DaikuFi): Fetching asset failed:', event.request.url, error);
-          // Optionally return a fallback for specific asset types like images
+          console.error('[Service Worker] Fetch failed for:', event.request.url, error);
+          // You could provide a fallback image or generic response here if needed
+          // For example, for images: return caches.match('/fallback-image.png');
         });
       })
-    );
-    return;
-  }
-
-  // For other requests (e.g., Firebase API calls), go network-first or network-only.
-  // The default fetch event behavior is network-only if not intercepted.
-  // For robustness, you might implement a network-first, then cache strategy for APIs
-  // if you want to cache API responses, but that's more advanced.
-  // For now, let non-cached requests pass through to the network.
-  // console.log('Service Worker (DaikuFi): Passing through to network:', event.request.url);
-  // event.respondWith(fetch(event.request)); // Default behavior, can be omitted.
+  );
 });
