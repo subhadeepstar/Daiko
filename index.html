@@ -9,6 +9,16 @@
         <div class="total-balance">
             Total Remaining Balance: <span id="currencySymbolTotalBalance">₹</span><span id="totalBalance">0.00</span>
         </div>
+
+        <div class="card no-hover-effect month-navigation">
+            <span id="currentDateDisplay"></span> <div class="month-nav-buttons">
+                <button onclick="changeMonth(-1)" class="secondary" aria-label="Previous Month">Previous Month</button>
+                <button onclick="changeMonth(1)" class="secondary" aria-label="Next Month">Next Month</button>
+            </div>
+            <div class="month-actions">
+                <button onclick="manualCopyFundsFromPreviousMonth()" class="secondary" id="copyFundsBtn" style="display:none;" aria-label="Copy Funds from Previous Month">Copy Last Month's Funds</button> </div>
+        </div>
+
         <div id="dashboardGaugesContainer" class="dashboard-gauges-container">
             <div class="gauge-widget">
             <canvas id="investmentGaugeCanvas"></canvas>
@@ -49,13 +59,17 @@
             <button onclick="handlePay()" class="secondary" aria-label="Log Expense">Log Expense <span id="paymentActionText"></span></button>
             <button onclick="revertLastTransaction()" class="danger" aria-label="Revert Last Transaction">Revert Last Transaction</button>
         </div>
-        <div class="card no-hover-effect month-navigation">
-            <span id="currentDateDisplay"></span> <div class="month-nav-buttons">
-                <button onclick="changeMonth(-1)" class="secondary" aria-label="Previous Month">Previous Month</button>
-                <button onclick="changeMonth(1)" class="secondary" aria-label="Next Month">Next Month</button>
-            </div>
-            <div class="month-actions">
-                <button onclick="manualCopyFundsFromPreviousMonth()" class="secondary" id="copyFundsBtn" style="display:none;" aria-label="Copy Funds from Previous Month">Copy Last Month's Funds</button> </div>
+
+
+        <div class="card no-hover-effect" id="expenseFundsCard"> <h4>Expense Funds</h4>
+            <h5 class="centered-primary-subheading">Loan & EMI Funds</h5>
+            <div id="loanEmiFunds" class="fund-grid-container"></div>
+            <h5 class="centered-primary-subheading">Daily Expense Funds</h5>
+            <div id="dailyExpenseFunds" class="fund-grid-container"></div>
+        </div>
+
+        <div class="card no-hover-effect" id="investmentFundsCard"> <h4>Investment Funds</h4>
+            <div id="investmentFunds" class="fund-grid-container"></div>
         </div>
 
         <div class="card no-hover-effect" id="monthlyIncomeCard"> <h4>Monthly Income & Expenses</h4>
@@ -72,19 +86,9 @@
             <input type="number" id="monthlyIncomeInput" placeholder="Enter/Update monthly income" aria-label="Monthly Income Input" />
             <button onclick="setMonthlyIncome()" class="primary" aria-label="Set Monthly Income">Set Income</button>
         </div>
+       
 
-        <div class="card no-hover-effect" id="expenseFundsCard"> <h4>Expense Funds</h4>
-            <h5 class="centered-primary-subheading">Loan & EMI Funds</h5>
-            <div id="loanEmiFunds" class="fund-grid-container"></div>
-            <h5 class="centered-primary-subheading">Daily Expense Funds</h5>
-            <div id="dailyExpenseFunds" class="fund-grid-container"></div>
-        </div>
-
-        <div class="card no-hover-effect" id="investmentFundsCard"> <h4>Investment Funds</h4>
-            <div id="investmentFunds" class="fund-grid-container"></div>
-        </div>
-
-        <div class="card no-hover-effect" id="transferFundsCard"> <h4>Fund Transfer</h4>
+ <div class="card no-hover-effect" id="transferFundsCard"> <h4>Fund Transfer</h4>
             <select id="transferFromCategory" aria-label="Transfer From Category"></select>
             <select id="transferToCategory" aria-label="Transfer To Category"></select>
             <input type="number" id="transferAmount" placeholder="Amount to transfer" aria-label="Transfer Amount" />
