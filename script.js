@@ -3345,16 +3345,16 @@ async function changeMonth(delta) {
 
         if (prevMonthData && prevMonthData.categories && prevMonthData.categories.length > 0) {
             currentMonthData.categories = prevMonthData.categories.map(fund => {
-                let newFund = { ...fund };
-                newFund.balance = newFund.initialBalance;
-                if (newFund.deductionType === 'auto') {
-                    newFund.spent = newFund.emiAmount;
-                    newFund.balance -= newFund.emiAmount;
-                } else {
-                    newFund.spent = (newFund.type === 'investment') ? newFund.initialBalance : 0;
-                }
-                return newFund;
-            });
+    let newFund = { ...fund };
+    newFund.balance = newFund.initialBalance; // Reset balance to its initial allocated amount
+    newFund.spent = 0; // Reset spent amount to 0 for the new month
+
+    // The only exception is for manual investments, where the initial amount is considered "spent"
+    if (newFund.type === 'investment' && newFund.deductionType === 'manual') {
+        newFund.spent = newFund.initialBalance;
+    }
+    return newFund;
+});
             currentMonthData.history = [];
             currentMonthData.emiDeducted = false;
             currentMonthData.fundsImported = true;
@@ -4173,6 +4173,83 @@ function openEditFundModal(index) {
         fundIndexToEdit = -1;
     }
 
+
+async function saveEditedFund() {
+    // Check if a fund is actually being edited
+    if (fundIndexToEdit === -1) {
+        await showAlert('Error: No fund selected for editing.');
+        return;
+    }
+
+    const currentMonthData = getCurrentMonthData();
+    const fundToEdit = currentMonthData.categories[fundIndexToEdit];
+
+    if (!fundToEdit) {
+        await showAlert('Error: Could not find the fund to edit.', 'Edit Error');
+        closeEditFundModal();
+        return;
+    }
+
+    // Store original details for the history log
+    const originalFundDetails = JSON.parse(JSON.stringify(fundToEdit));
+
+    // Get new values from the modal's input fields
+    const newName = document.getElementById('editFundName').value.trim();
+    const newType = document.querySelector('input[name="editFundType"]:checked').value;
+    const newDeductionType = document.getElementById('editIsAutoDeduct').checked ? 'auto' : 'manual';
+    let newDueDay = null;
+
+    if (newDeductionType === 'auto') {
+        const dueDayValueStr = document.getElementById('editFundDueDay').value;
+        if (dueDayValueStr) {
+            const dueDayValue = parseInt(dueDayValueStr, 10);
+            if (isNaN(dueDayValue) || dueDayValue < 1 || dueDayValue > 31) {
+                await showAlert('Please enter a valid Due Day (1-31) or leave it blank.');
+                return;
+            }
+            newDueDay = dueDayValue;
+        }
+    }
+
+    // --- Validations ---
+    if (!newName) {
+        await showAlert('Fund name cannot be empty.');
+        return;
+    }
+
+    // Check if another fund (other than the one being edited) already has the new name
+    const anotherFundExists = currentMonthData.categories.some((cat, index) =>
+        index !== fundIndexToEdit && cat.name.toLowerCase() === newName.toLowerCase()
+    );
+
+    if (anotherFundExists) {
+        await showAlert(`A fund with the name '${newName}' already exists.`);
+        return;
+    }
+
+    // --- Apply Changes ---
+    // Note: The Amount field is set to read-only in this modal, so we are not changing financial values here.
+    fundToEdit.name = newName;
+    fundToEdit.type = newType;
+    fundToEdit.deductionType = newDeductionType;
+    fundToEdit.dueDay = newDeductionType === 'auto' ? newDueDay : null;
+
+    // --- Log to History ---
+    addToHistory({
+        type: 'fund_edit',
+        fundId: fundToEdit.id,
+        fundNameBeforeEdit: originalFundDetails.name,
+        description: `Fund '${originalFundDetails.name}' was updated to '${newName}'.`
+    });
+
+    // --- Finalize ---
+    showToast(`Fund '${newName}' updated successfully.`);
+    closeEditFundModal();
+    render(); // Re-draw the screen with the updated information
+}
+
+
+
     function toggleEditDueDayVisibility() {
         editDueDayInputContainer.style.display = editIsAutoDeductCheckbox.checked ? 'block' : 'none';
         if (!editIsAutoDeductCheckbox.checked) {
@@ -4464,27 +4541,38 @@ function addNotification(message, id, type = 'info') {
         renderNotifications();
     }
 
-    function renderNotifications() {
-        notificationsDropdown.innerHTML = '';
-        const unreadNotifications = appSettings.notifications.filter(n => !n.read);
+function renderNotifications() {
+    notificationsDropdown.innerHTML = '';
+    const unreadNotifications = appSettings.notifications.filter(n => !n.read);
 
-        if (unreadNotifications.length > 0) {
-            notificationBadge.textContent = unreadNotifications.length;
-            notificationBadge.classList.add('visible');
-            unreadNotifications.forEach(n => {
-                const item = document.createElement('div');
-                item.className = 'notification-item unread';
-                item.innerHTML = n.message;
-                item.onclick = () => {
-                    const notificationToMark = appSettings.notifications.find(notif => notif.id === n.id);
-                    if (notificationToMark) notificationToMark.read = true;
-                    saveAppSettings();
-                    renderNotifications();
-                };
-                notificationsDropdown.appendChild(item);
-            });
-        } else {
-            notificationBadge.classList.remove('visible');
+    if (unreadNotifications.length > 0) {
+        notificationBadge.textContent = unreadNotifications.length;
+        notificationBadge.classList.add('visible');
+        
+        // Add this line for the staggered animation
+        let animationDelay = 0;
+
+        unreadNotifications.forEach(n => {
+            const item = document.createElement('div');
+            item.className = 'notification-item unread';
+            item.innerHTML = n.message;
+
+            // --- START: Added Animation Logic ---
+            item.style.animation = `slideInFade 0.4s ease-out forwards`;
+            item.style.animationDelay = `${animationDelay}s`;
+            animationDelay += 0.1; // Increment delay for the next item
+            // --- END: Added Animation Logic ---
+
+            item.onclick = () => {
+                const notificationToMark = appSettings.notifications.find(notif => notif.id === n.id);
+                if (notificationToMark) notificationToMark.read = true;
+                saveAppSettings();
+                renderNotifications();
+            };
+            notificationsDropdown.appendChild(item);
+        });
+    } else {     
+       notificationBadge.classList.remove('visible');
         }
 
         const readNotifications = appSettings.notifications
