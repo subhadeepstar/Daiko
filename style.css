@@ -4,7 +4,7 @@
 /* Light Mode Variables (NEW - Clean, Vibrant & Friendly) */
 :root {
   --primary-color: #B98BFF; /* Lavender Glow - key info/interactive */
-  --secondary-color: #56F4D4; /* Sky Aqua - status indicators/notifications */
+  --secondary-color: #6A994E; /* Sky Aqua - status indicators/notifications */
   --accent-color: #B4F000; /* Neon Lime - financial stats */
   --danger-color: #E53E3E; /* Distinct Red for danger */
   --text-color: #1F2937; /* Deep Charcoal Gray - primary text */
@@ -16,7 +16,7 @@
   --dot-color: var(--border-color); /* Color for the dots in light mode */
 
   --button-hover-primary: #A07FE0; /* Darker Lavender Glow */
-  --button-hover-secondary: #48D1B9; /* Darker Sky Aqua */
+  --button-hover-secondary: #6A994E; /* Darker Sky Aqua */
   --button-hover-danger: #D02B2B; /* Darker Red */
 
   --warning-orange: #FFC36E; /* Sunset Peach - alerts/highlights */
@@ -24,31 +24,34 @@
 
   --gradient-primary-start: #C9A1FF; /* Lighter Lavender Glow */
   --gradient-primary-end: #B98BFF;   /* Lavender Glow */
-  --gradient-secondary-start: #70F7DE;/* Lighter Sky Aqua */
+  --gradient-secondary-start: #6A994E;/* Lighter Sky Aqua */
   --gradient-secondary-end: #56F4D4; /* Sky Aqua */
   --gradient-danger-start: #F05F5F;  /* Lighter Red */
   --gradient-danger-end: #E53E3E;    /* Distinct Red */
   --gradient-accent-start: #C0F53D;  /* Lighter Neon Lime */
   --gradient-accent-end: #B4F000;    /* Neon Lime */
 
-  --investment-gauge-color: #3ED6BE; /* Soft Teal - success indicators */
-  --expense-gauge-color: #FFC36E; /* Sunset Peach - alerts/highlights (used as expense warning) */
-  --loan-gauge-color: #84C5FF; /* Bright Azure - informational */
-  --gauge-track-color: #E5E7EB; /* Mist Gray or a lighter shade of card-bg */
+  
+  /* Gauges */
+  --investment-gauge-color: #82AAE3;      /* Pastel Blue */
+  --expense-gauge-color: #F99B7D;         /* Pastel Coral */
+  --loan-gauge-color: #BDBDBD;            /* Neutral Gray */
+  --gauge-track-color: rgba(0, 0, 0, 0.08);
 
-  --tutorial-highlight-color: #B4F000; /* Neon Lime */
+  /* Other */
+  --tutorial-highlight-color: var(--accent-color);
+  --shadow-depth-1: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-depth-button: 0 2px 6px rgba(0,0,0,0.1);
+  --shadow-depth-button-pressed: inset 0px 2px 4px rgba(0,0,0,0.15);
 
-  --shadow-depth-1: 2px 2px 5px rgba(0,0,0,0.08), -1px -1px 3px rgba(255,255,255,0.5);
-  --shadow-depth-2-inset: inset 1px 1px 3px rgba(0,0,0,0.08), inset -1px -1px 3px rgba(255,255,255,0.5);
-  --shadow-depth-button: 2px 2px 4px #D1D5DB, -2px -2px 4px #FFFFFF; /* Adjusted for new light theme */
-  --shadow-depth-button-pressed: inset 2px 2px 4px #D1D5DB, inset -2px -2px 4px #FFFFFF;
-
+  /* Notifications */
   --notification-bg: var(--card-bg);
   --notification-border: var(--border-color);
   --notification-text: var(--text-color);
   --notification-unread-bg: var(--primary-color);
-  --notification-unread-text: var(--light-text-color); /* White text on Lavender Glow */
+  --notification-unread-text: #FFFFFF;
 
+  /* RGB equivalents */
   --primary-color-rgb: 185, 139, 255; /* RGB for #B98BFF */
   --danger-color-rgb: 229, 62, 62;    /* RGB for #E53E3E */
 }
@@ -58,7 +61,7 @@ body.dark-mode {
   --body-bg: #1C3327; /* Deep Forest Green - background */
   --card-bg: #1F1F1F; /* Charcoal Black - surface (cards/containers) */
   --subtle-bg: #2a2d2a; /* Existing subtle dark, can be #2E3D3A if preferred as bg */
-
+  
   --text-color: #FFFFFF; /* White - primary text */
   --text-secondary-color: #CFCFCF; /* Soft Mist Gray - secondary text (labels, captions) */
   --light-text-color: #0D0F17; /* Dark text for light buttons (e.g., on lime green accent) */
@@ -123,9 +126,10 @@ body {
   margin: 0 auto;
   padding: 20px;
   padding-bottom: 80px;
-  background-color: var(--body-bg); /* This remains as the base color */
-  background-image: radial-gradient(var(--dot-color) 1px, transparent 1px); /* Dotted pattern */
-  background-size: 15px 15px; /* Adjust dot spacing here (width height) */
+  /* --- CORRECTED TO USE VARIABLES --- */
+  background-color: var(--body-bg);
+  background-image: var(--body-bg-image);
+  background-size: var(--body-bg-size);
   color: var(--text-color);
   line-height: 1.55;
   transition: background-color 0.3s ease, color 0.3s ease;
@@ -135,7 +139,6 @@ body {
   flex-direction: column;
   min-height: 100vh;
   overflow-x: hidden;
-  -webkit-tap-highlight-color: transparent;
 }
 
 /* General Headings */
@@ -150,18 +153,13 @@ h3#dashboard-section {
     font-size: 1.1rem;
     font-weight: 500;
     text-align: center;
-    color: var(--text-color); /* Changed to var(--text-color) for better adaptability */
-    text-transform: none;
-    letter-spacing: normal;
+    color: var(--text-color);
     margin-bottom: 18px;
-    
-    /* Add the following lines to use Flexbox for alignment */
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 10px; /* Adds a nice space between the avatar and the text */
+    gap: 10px;
 }
-
 
 
 /* Add this new rule to style the image inside the button */
@@ -175,6 +173,9 @@ h3#dashboard-section {
     width: 100% !important; /* Ensure Chart.js responsiveness */
     max-height: 250px; /* Example max height */
 }
+
+
+
 /* Card Titles and Section Titles */
 .card > h4:not(#modalTitle),
 #history-section > h4,
@@ -198,13 +199,15 @@ h3#dashboard-section {
 
 /* Card Styles - Increased rounding */
 .card {
-  background-color: var(--card-bg);
-  border-radius: 20px; /* More rounded */
+  background-color: var(--card-bg); /* Now uses the rgba value for transparency */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px); /* For Safari compatibility */
+  border-radius: 24px;
   padding: 18px;
   margin: 15px 0;
   box-shadow: var(--shadow-depth-1);
   transition: transform 0.2s ease-in-out, background-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, border 0.3s ease;
-  border: 1px solid transparent; /* Keep transparent unless warning */
+  border: 1px solid var(--border-color); /* Now uses a transparent white border */
   position: relative;
 }
 
@@ -247,7 +250,7 @@ h3#dashboard-section {
 .fund-tablet {
     background-color: var(--card-bg);
     border: 1px solid var(--border-color); /* Default border - NOW VISIBLE with new contrasting border colors */
-    border-radius: 18px;
+    border-radius: 22px;
     padding: 12px;
     box-shadow: var(--shadow-depth-1);
     display: flex;
@@ -282,7 +285,7 @@ h3#dashboard-section {
   align-items: center;
   justify-content: space-around; /* Or space-between, to distribute space */
   padding: 8px 5px; /* Reduced overall padding to gain space */
-  background-color: var(--card-bg);
+  background-color: var(--subtle-bg);
   border-radius: 20px;
   box-shadow: var(--shadow-depth-1);
   height: 120px;
@@ -290,6 +293,7 @@ h3#dashboard-section {
   overflow: hidden;
   position: relative;
 }
+
 .gauge-widget .gauge-label {
   font-size: 11px;
   font-weight: 400;
@@ -413,6 +417,11 @@ button,
     max-height: 80vh; /* Adjust as needed, e.g., 80% of viewport height */
     overflow-y: auto; /* This will add the scrollbar when content overflows vertically */
     -webkit-overflow-scrolling: touch; /* For smoother scrolling on iOS */
+     scrollbar-width: none;
+
+.daiko-insights-modal-content::-webkit-scrollbar {
+    display: none;
+}
 }
 .modal-buttons button {
     font-size: 14px;
@@ -559,12 +568,10 @@ button,
 
 .daiko-insights-fab {
   position: fixed;
-  /* width: 50px; */ /* Remove fixed width */
-  width: auto;     /* Allow button to size to its content */
-  min-width: 50px; /* Ensure it's not too small if text were very short */
-  height: 50px;
-  border-radius: 25px; /* This will make it pill-shaped */
-  /* font-size: 24px; */ /* Remove general font-size, set for text and icon separately */
+  width: 56px; /* Set a fixed width */
+  height: 56px; /* Height must be equal to width */
+  border-radius: 50%; /* This creates a perfect circle */
+  font-size: 28px; /* Larger font-size for the emoji icon */
   box-shadow: var(--shadow-depth-button);
   transition: background-color 0.3s, transform 0.2s ease-in-out, box-shadow 0.2s ease;
   display: flex;
@@ -575,19 +582,10 @@ button,
   cursor: pointer;
   bottom: 140px; 
   left: 15px;   
-  padding: 0 18px; /* Add horizontal padding for text */
-
-  background-color: #B4F000; /* Using your --accent-color (Neon Lime) for lime yellow */
-  /* OR a specific lime: background-color: lime; */
-  /* OR background-color: #BFFF00; /* Bright Lime */
-
-  font-family: 'Poppins', 'Roboto', sans-serif; /* Ensure Poppins is used */
-  font-size: 13px;       /* Font size for the text "Get insights with Daiko" */
-  font-weight: 500;
-  color: #1F2937; /* Deep Charcoal Gray text - good contrast on bright lime/yellow */
-  gap: 8px; /* Adds space between the text and the icon */
+  padding: 0; /* Remove padding */
+  background-color: var(--accent-color);
+  color: #1F2937;
 }
-
 .daiko-insights-fab .fab-icon {
     font-size: 18px; /* Slightly larger size for the bulb icon */
     line-height: 1; /* Helps with vertical alignment if needed */
@@ -669,11 +667,73 @@ body.dark-mode .daiko-insights-fab:hover {
 /* --- Remaining Original CSS --- */
 .notification-badge { background-color: var(--danger-color); color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.7em; font-weight: bold; display: none; }
 .notification-badge.visible { display: block; }
-.notifications-dropdown { background-color: var(--notification-bg); border: 1px solid var(--notification-border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1010; display: none; padding: 10px; width: 280px; max-height: 300px; overflow-y: auto; }
+.notifications-dropdown {
+    background-color: var(--notification-bg);
+    border: 1px solid var(--notification-border);
+    border-radius: 16px; /* Increased rounding */
+    box-shadow: 0 5px 20px rgba(0,0,0,0.2); /* Deeper shadow */
+    z-index: 1010;
+    display: none;
+    padding: 15px; /* Increased padding */
+    width: 280px;
+    max-height: 300px;
+    overflow-y: auto;
+    scrollbar-width: none;
+}
+.notifications-dropdown::-webkit-scrollbar {
+    display: none;
+}
 .notifications-dropdown.visible { display: block; }
-.notification-item { padding: 8px; border-bottom: 1px solid var(--notification-border); font-size: 0.85em; color: var(--notification-text); cursor: pointer; }
+.notification-item {
+    padding: 12px 16px; /* More spacious padding */
+    font-size: 0.85em;
+    color: var(--notification-text);
+    cursor: pointer;
+    border-radius: 20px; /* Highly rounded corners */
+    margin-bottom: 12px; /* Increased space between bubbles */
+    position: relative;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    border-bottom: none; /* Remove the old line separator */
+}
+
+.notification-item::after {
+    content: '';
+    position: absolute;
+    top: -6px; /* Position the tail at the top */
+    right: 20px; /* Position it on the right side */
+    border-width: 0 8px 8px 8px; /* Creates a downward-pointing triangle */
+    border-style: solid;
+    border-color: transparent transparent var(--notification-unread-bg) transparent; /* Matches the unread background */
+}
+
 .notification-item:last-child { border-bottom: none; }
-.notification-item.unread { background-color: var(--notification-unread-bg); color: var(--notification-unread-text) !important; border-radius: 4px; margin-bottom: 5px; }
+.notification-item.unread {
+    background-color: var(--notification-unread-bg);
+    color: var(--notification-unread-text) !important;
+}
+
+/* This ensures the tail on unread items has the correct color */
+.notification-item.unread::after {
+    border-color: transparent transparent var(--notification-unread-bg) transparent;
+}
+
+/* This ensures the tail on read items is styled to match their background */
+body:not(.dark-mode) .notification-item:not(.unread)::after {
+    border-color: transparent transparent var(--card-bg) transparent;
+}
+body.dark-mode .notification-item:not(.unread)::after {
+    border-color: transparent transparent var(--subtle-bg) transparent;
+}
+@keyframes slideInFade {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
 
 /* Hover states for notification items */
 body:not(.dark-mode) .notification-item:hover { background-color: var(--accent-color); color: var(--text-color); /* Neon Lime bg, Deep Charcoal text */ }
@@ -725,12 +785,25 @@ body:not(.dark-mode) input::placeholder { color: var(--text-secondary-color); op
 .emi-amount-input.show { display: block; }
 
 button:active { transform: scale(0.98); box-shadow: var(--shadow-depth-button-pressed); }
-button.primary { background-image: linear-gradient(to right, var(--gradient-primary-start) 0%, var(--gradient-primary-end) 51%, var(--gradient-primary-start) 100%); }
-button.primary:hover { background-position: right center; box-shadow: 0 6px 15px rgba(0,0,0,0.2), var(--shadow-depth-button); }
-button.danger { background-image: linear-gradient(to right, var(--gradient-danger-start) 0%, var(--gradient-danger-end) 51%, var(--gradient-danger-start) 100%); }
-button.danger:hover { background-position: right center; box-shadow: 0 6px 15px rgba(0,0,0,0.2), var(--shadow-depth-button); }
-button.secondary { background-image: linear-gradient(to right, var(--gradient-secondary-start) 0%, var(--gradient-secondary-end) 51%, var(--gradient-secondary-start) 100%); }
-button.secondary:hover { background-position: right center; box-shadow: 0 6px 15px rgba(0,0,0,0.2), var(--shadow-depth-button); }
+
+/* --- Solid Color Button Styles --- */
+button.primary { background-color: var(--primary-color); }
+button.primary:hover { 
+    background-color: var(--button-hover-primary);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.2), var(--shadow-depth-button); 
+}
+
+button.danger { background-color: var(--danger-color); }
+button.danger:hover { 
+    background-color: var(--button-hover-danger);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.2), var(--shadow-depth-button); 
+}
+
+button.secondary { background-color: var(--secondary-color); }
+button.secondary:hover { 
+    background-color: var(--button-hover-secondary);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.2), var(--shadow-depth-button); 
+}
 
 .fund-item-controls { display: flex; gap: 10px; align-items: center; }
 
@@ -740,7 +813,8 @@ button.secondary:hover { background-position: right center; box-shadow: 0 6px 15
 #historyTable th { background-color: var(--card-bg); color: var(--text-secondary-color); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em;}
 body.dark-mode #historyTable th { background-color: var(--subtle-bg); color: var(--text-secondary-color); }
 
-.total-balance { font-size: 0.9rem; font-weight: 500; text-align: center; margin-bottom: 15px; padding: 10px; border-radius: 16px; background-color: var(--card-bg); color: var(--text-color); box-shadow: var(--shadow-depth-1); }
+.total-balance { font-size: 0.9rem; font-weight: 500; text-align: center; margin-bottom: 15px; padding: 10px; border-radius: 16px; background-color: #ffd6ff; color: var(--text-color); box-shadow: var(--shadow-depth-1); }
+
 body.dark-mode .total-balance { background-color: var(--card-bg); }
 
 #currencySymbolTotalBalance {
@@ -757,7 +831,13 @@ body.dark-mode .total-balance { background-color: var(--card-bg); }
 #logTransactionSectionCard > h4 {
     display: none;
 }
-.month-navigation { margin-bottom: 15px; text-align: center; }
+.month-navigation { 
+    margin-top: 4px; /* Added to give a little space from the total balance */
+    margin-bottom: 8px; 
+    text-align: center; 
+    padding: 5px; /* Reduced padding to decrease height */
+}
+
 .month-navigation #currentDateDisplay { font-weight: 500; font-size: 1.2em; color: var(--text-color); display: block; margin-bottom: 12px; }
 .month-nav-buttons { display: flex; justify-content: space-between; gap: 10px; }
 .month-nav-buttons button { width: 48%; margin: 0; padding: 10px; font-size: 0.9em; }
