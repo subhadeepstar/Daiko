@@ -2843,6 +2843,7 @@ async function handlePay(payDetailsFromBot = null) {
             switch (lastTransaction.type) {
                 case 'expense_cash':
                 case 'expense_scan_pay':
+                case 'expense_pay_via_app': // <<< FIX: Add this line
                     const expenseFund = currentMonthData.categories.find(cat => cat.name === lastTransaction.fundName);
                     if (expenseFund) {
                         expenseFund.balance += lastTransaction.amount;
