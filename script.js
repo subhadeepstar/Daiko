@@ -178,6 +178,73 @@ auth.onAuthStateChanged(async user => {
         return date.toLocaleString('en-US', options);
     }
 
+/**
+ * Calculates the start and end dates of a budget cycle for any given date.
+ * @param {Date} forDate - A date within the desired cycle.
+ * @returns {{start: Date, end: Date}} - An object containing the start and end Date objects of the cycle.
+ */
+function getCycleStartAndEnd(forDate) {
+    const startDay = appSettings.budgetCycleStartDay || 1;
+    let year = forDate.getFullYear();
+    let month = forDate.getMonth();
+
+    let cycleStartDate;
+
+    if (forDate.getDate() >= startDay) {
+        // The cycle started in the current month
+        cycleStartDate = new Date(year, month, startDay);
+    } else {
+        // The cycle started in the previous month
+        cycleStartDate = new Date(year, month - 1, startDay);
+    }
+
+    // The end date is one day before the start of the next cycle
+    let nextCycleStartDate = new Date(cycleStartDate);
+    nextCycleStartDate.setMonth(nextCycleStartDate.getMonth() + 1);
+    
+    let cycleEndDate = new Date(nextCycleStartDate);
+    cycleEndDate.setDate(cycleEndDate.getDate() - 1);
+    
+    // Set time to the end of the day for accurate comparisons
+    cycleEndDate.setHours(23, 59, 59, 999);
+
+    return { start: cycleStartDate, end: cycleEndDate };
+}
+
+/**
+ * Generates a unique key for the monthlyData object based on the cycle's start date.
+ * @param {Date} forDate - A date within the desired cycle.
+ * @returns {string} - The key in "YYYY-MM-DD" format.
+ */
+function getCycleKey(forDate) {
+    const { start } = getCycleStartAndEnd(forDate);
+    const year = start.getFullYear();
+    const month = (start.getMonth() + 1).toString().padStart(2, '0');
+    const day = start.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+/**
+ * Creates a user-friendly string to display the current cycle's date range.
+ * @param {Date} forDate - A date within the desired cycle.
+ * @returns {string} - The formatted date range string (e.g., "May 15 - June 14, 2025").
+ */
+function displayCycleDateRange(forDate) {
+    const { start, end } = getCycleStartAndEnd(forDate);
+    const options = { month: 'long', day: 'numeric' };
+    
+    const startStr = start.toLocaleDateString('en-US', options);
+    const endStr = end.toLocaleDateString('en-US', options);
+
+    if (start.getFullYear() !== end.getFullYear()) {
+        return `${startStr}, ${start.getFullYear()} - ${endStr}, ${end.getFullYear()}`;
+    } else {
+        return `${startStr} - ${endStr}, ${start.getFullYear()}`;
+    }
+}
+
+
+
 function toggleHowWasMyDayGraph() {
     const graphContainer = document.getElementById('howWasMyDayGraphContainer');
     const graphToggleIcon = document.getElementById('howWasMyDayGraphToggleIcon');
@@ -522,36 +589,41 @@ function suggestAndAnalyzeFinancialRule(metrics, income, currencySymbol) {
         ruleFeedbackHTML
     };
 }
-    function getDailyExpenseDataForChart() {
-    const currentMonthData = getCurrentMonthData();
-    const history = currentMonthData.history;
-    const dailyExpenses = {}; // Object to store expenses sum per day
+function getDailyExpenseDataForChart() {
+    const currentCycleData = getCurrentCycleData(); // CORRECT: Use new function name
+    const history = currentCycleData.history;
+    const { start, end } = getCycleStartAndEnd(currentMonth); // CORRECT: Get cycle boundaries
 
-    const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
-    const labels = Array.from({ length: daysInMonth }, (_, i) => (i + 1).toString()); // Labels for days 1 to N
+    const dailyExpenses = {};
+    const labels = [];
 
-    // Initialize expenses for all days to 0
-    labels.forEach(day => {
-        dailyExpenses[day] = 0;
-    });
+    // Loop from the start date to the end date of the cycle
+    let currentDateInLoop = new Date(start);
+    while (currentDateInLoop <= end) {
+        const dayOfMonth = currentDateInLoop.getDate();
+        labels.push(dayOfMonth.toString());
+        dailyExpenses[dayOfMonth] = 0;
+        currentDateInLoop.setDate(currentDateInLoop.getDate() + 1);
+    }
 
+    // Now, populate the expenses from history
     history.forEach(transaction => {
-        // Consider relevant expense types
-        const expenseTypes = ['expense_cash', 'expense_scan_pay', 'expense_pay_via_app'];
-        // Optionally include EMI/Auto-deductions if they should appear as daily spikes:
-        // const expenseTypes = ['expense_cash', 'expense_scan_pay', 'expense_pay_via_app', 'emi_deduction_processed'];
-        
+        const expenseTypes = ['expense_cash', 'expense_scan_pay', 'expense_pay_via_app', 'emi_deduction_processed'];
+
         if (expenseTypes.includes(transaction.type) && transaction.amount > 0) {
             const transactionDate = new Date(transaction.timestamp);
-            if (transactionDate.getMonth() === currentMonth.getMonth() &&
-                transactionDate.getFullYear() === currentMonth.getFullYear()) {
-                const dayOfMonth = transactionDate.getDate().toString();
-                dailyExpenses[dayOfMonth] += transaction.amount;
+
+            // Check if the transaction falls within the current cycle
+            if (transactionDate >= start && transactionDate <= end) {
+                const dayOfMonth = transactionDate.getDate(); // Get day as a number
+                if (dailyExpenses.hasOwnProperty(dayOfMonth)) {
+                    dailyExpenses[dayOfMonth] += transaction.amount;
+                }
             }
         }
     });
 
-    const data = labels.map(day => dailyExpenses[day] || 0); // Ensure order matches labels
+    const data = labels.map(day => dailyExpenses[day] || 0);
 
     return {
         labels: labels,
@@ -748,7 +820,7 @@ let appSettings = JSON.parse(localStorage.getItem('appSettings')) || {
         currency: 'INR',
         defaultPaymentApp: 'GPay',
         notifications: [],
-        
+        budgetCycleStartDay: 1,
         userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone // Default to browser's timezone
     };
      if (!appSettings.notifications) appSettings.notifications = [];
@@ -802,7 +874,7 @@ async function populateDaikoInsights() {
     const currencySymbol = currencySymbols[appSettings.currency] || '₹';
     const currentMonthObj = new Date(currentMonth); 
     const currentMonthKey = getMonthYearString(currentMonthObj); 
-    const currentMonthData = getCurrentMonthData(); 
+    const currentMonthData = getCurrentCycleData(); 
     const currentMetrics = analyzeFinancialMonth(currentMonthData, currentMonthKey); // Ensure analyzeFinancialMonth is defined and working
 
     const prevMonthDate = new Date(currentMonthObj);
@@ -1121,42 +1193,39 @@ function toggleDaikoInsightSpeech() {
     }
     // --- End Toast Notification Function ---
 
-    function getCurrentMonthData() {
-        const monthYear = getMonthYearString(currentMonth);
-        if (!monthlyData[monthYear]) {
-            monthlyData[monthYear] = {
-                income: 0,
-                categories: [],
-                history: [],
-                emiDeducted: false,
-                fundsImported: false
-            };
-        }
-         let walletFund = monthlyData[monthYear].categories.find(cat => cat.name === 'Wallet' && cat.isDefaultWallet);
+function getCurrentCycleData() {
+    const cycleKey = getCycleKey(currentMonth); // Use the new key generator
+    if (!monthlyData[cycleKey]) {
+        monthlyData[cycleKey] = {
+            income: 0,
+            categories: [],
+            history: [],
+            emiDeducted: false,
+            fundsImported: false
+        };
+    }
+    
+    // --- Start: Wallet Initialization Logic ---
+let walletFund = monthlyData[cycleKey].categories.find(cat => cat.name === 'Wallet' && cat.isDefaultWallet);
     if (!walletFund) {
         walletFund = {
-            id: 'default_wallet_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9), // Unique ID
+            id: 'default_wallet_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
             name: 'Wallet',
-            initialBalance: monthlyData[monthYear].income, // Initialized with current income
-            balance: monthlyData[monthYear].income,      // Balance also reflects this
+            initialBalance: monthlyData[cycleKey].income,
+            balance: monthlyData[cycleKey].income,
             spent: 0,
             type: 'expense',
             deductionType: 'manual',
-            isDefaultWallet: true, // Custom flag to identify this special fund
-            isDeletable: false,    // Make it non-deletable
-            isEditable: false      // Restrict certain edits (like name/type)
+            isDefaultWallet: true,
+            isDeletable: false,
+            isEditable: false
         };
-        monthlyData[monthYear].categories.unshift(walletFund); // Add to the beginning
-    } else {
-        // If income changes, wallet's reference to it might need an update IF it's the only source
-        // This logic will be handled more robustly in setMonthlyIncome and fund creation/deletion
+        monthlyData[cycleKey].categories.unshift(walletFund);
     }
 
-
-
-        monthlyData[monthYear].income = parseFloat(monthlyData[monthYear].income) || 0;
-        return monthlyData[monthYear];
-    }
+    monthlyData[cycleKey].income = parseFloat(monthlyData[cycleKey].income) || 0;
+    return monthlyData[cycleKey];
+}
 
 // Replace the existing saveData function with this:
 async function saveData() {
@@ -1432,7 +1501,7 @@ function updateAuthUIVisibility() {
     }
 
     function renderDashboardGauges() {
-        const currentMonthData = getCurrentMonthData();
+        const currentMonthData = getCurrentCycleData();
         const monthlyIncome = currentMonthData.income;
         const categories = currentMonthData.categories;
 
@@ -1578,8 +1647,7 @@ function render() {
     saveUserProfile(); // This still saves to localStorage as per our previous decisions
     saveAppSettings(); // This saves appSettings.budgetMode to localStorage and shared settings to Firestore if applicable
 
-    const currentMonthData = getCurrentMonthData(); // From main monthlyData
-    // If you were implementing personal funds, you'd also get personalCurrentMonthData here.
+    const currentMonthData = getCurrentCycleData(); // From main monthlyData
     // For now, we assume 'categories' and 'history' come from the main (potentially synced) monthlyData.
     const categories = currentMonthData.categories || [];
     const history = currentMonthData.history || [];
@@ -1594,7 +1662,7 @@ function render() {
     const logTransactionBtnIcon = document.getElementById('logTransactionBtnIcon');
     if (logTransactionBtnIcon) logTransactionBtnIcon.textContent = currentCurrencySymbol;
 
-    document.getElementById('currentDateDisplay').textContent = getFullDateString(currentMonth);
+    document.getElementById('currentDateDisplay').textContent = displayCycleDateRange(currentMonth);
     document.getElementById('monthlyIncomeInput').value = monthlyIncome > 0 ? monthlyIncome.toFixed(2) : '';
     document.getElementById('displayMonthlyIncome').textContent = monthlyIncome.toFixed(2);
 
@@ -1608,6 +1676,29 @@ function render() {
     const totalBalanceSpan = document.getElementById('totalBalance');
     const displayTotalExpensesSpan = document.getElementById('displayTotalExpenses');
     const copyFundsBtn = document.getElementById('copyFundsBtn');
+
+    // Calculate total spent early for the visibility check
+    const totalSpent = categories.reduce((sum, cat) => sum + (cat.spent || 0), 0);
+
+    // --- CORRECTED VISIBILITY LOGIC ---
+    if (copyFundsBtn) {
+        const previousCycleDate = new Date(currentMonth);
+        previousCycleDate.setDate(getCycleStartAndEnd(currentMonth).start.getDate() - 1);
+        const prevCycleKey = getCycleKey(previousCycleDate);
+        
+        const prevMonthDataExists = monthlyData[prevCycleKey] && monthlyData[prevCycleKey].categories && monthlyData[prevCycleKey].categories.length > 0;
+        
+        // Condition: Show the button if the current cycle has ONLY the default wallet,
+        // no money has been spent, AND the previous cycle has data.
+        const isOnlyWalletFundPresent = categories.length === 1 && categories[0].isDefaultWallet;
+        
+        if (isOnlyWalletFundPresent && totalSpent === 0 && prevMonthDataExists) {
+            copyFundsBtn.style.display = 'block';
+        } else {
+            copyFundsBtn.style.display = 'none';
+        }
+    }
+
     const expenseSummaryTextDiv = document.getElementById('expenseSummaryText');
     const defaultPaymentAppNameSpan = document.getElementById('defaultPaymentAppName');
 
@@ -1621,14 +1712,24 @@ function render() {
     if (transferFromSelect) transferFromSelect.innerHTML = '';
     if (transferToSelect) transferToSelect.innerHTML = '';
 
-    // --- MODIFIED HISTORY TABLE POPULATION ---
+    const creditToSelect = document.getElementById('creditToCategory');
+    if (creditToSelect) {
+        creditToSelect.innerHTML = ''; // Clear existing options
+        categories.forEach((cat, index) => {
+            if (cat.type === 'expense' && cat.deductionType === 'manual') {
+                const isSelected = cat.isDefaultWallet ? 'selected' : '';
+                creditToSelect.innerHTML += `<option value='${index}' ${isSelected}>${cat.name} (${currentCurrencySymbol}${cat.balance.toFixed(2)})</option>`;
+            }
+        });
+    }
+
     const historyTableBody = document.querySelector('#historyTable tbody');
     if (historyTableBody) {
         historyTableBody.innerHTML = ''; // Clear previous rows
         history.forEach(h => {
             const row = historyTableBody.insertRow();
             const cellDate = row.insertCell();
-            const cellDesc = row.insertCell(); // This will display the concise fund name/activity
+            const cellDesc = row.insertCell();
             const cellAmount = row.insertCell();
             const cellType = row.insertCell();
 
@@ -1707,24 +1808,14 @@ function render() {
         });
     }
 
-    // --- END OF MODIFIED HISTORY TABLE POPULATION ---
-
     const loanEmiCategories = categories.filter(cat => cat.deductionType === 'auto' && cat.type === 'expense');
     const dailyExpenseCategories = categories.filter(cat => cat.deductionType === 'manual' && cat.type === 'expense');
     const investmentCategories = categories.filter(cat => cat.type === 'investment');
 
-    const prevMonthStr = getPreviousMonthYearString(currentMonth);
-    const prevMonthDataExists = monthlyData[prevMonthStr] && monthlyData[prevMonthStr].categories && monthlyData[prevMonthStr].categories.length > 0;
-    if (copyFundsBtn) { // Check if element exists
-        copyFundsBtn.style.display = (categories.length === 0 && prevMonthDataExists) ? 'block' : 'none';
-    }
-
-    // This function needs to be defined within render or accessible to it.
-    // It was previously nested, which is fine.
     function applyWarningBorder(fundTablet, fund) {
-        if (fund.deductionType === 'manual' && fund.initialBalance > 0 && fund.type === 'expense') { // Only for manual expense funds
+        if (fund.deductionType === 'manual' && fund.initialBalance > 0 && fund.type === 'expense') {
             const remainingPercentage = (fund.balance / fund.initialBalance) * 100;
-            fundTablet.classList.remove('warning-orange', 'warning-red'); // Clear previous warnings
+            fundTablet.classList.remove('warning-orange', 'warning-red');
             if (remainingPercentage <= 10) {
                 fundTablet.classList.add('warning-red');
             } else if (remainingPercentage <= 50) {
@@ -1735,12 +1826,10 @@ function render() {
         }
     }
 
-    const renderFundAsTablet = (fund, originalIndex) => { // Use originalIndex from main categories array
+    const renderFundAsTablet = (fund, originalIndex) => {
         const fundTablet = document.createElement('div');
         fundTablet.className = 'fund-tablet';
-        
-        // fundTablet.dataset.fundIndex = originalIndex; // Using originalIndex for consistency if edit uses it
-        fundTablet.onclick = () => openEditFundModal(originalIndex); // Pass original index
+        fundTablet.onclick = () => openEditFundModal(originalIndex);
 
         const dueDayText = (fund.deductionType === 'auto' && fund.dueDay)
                         ? `<div class="fund-due-day">Due: ${formatDueDate(fund.dueDay, currentMonth)}</div>`
@@ -1758,7 +1847,7 @@ function render() {
         } else if (fund.type === 'expense' && fund.deductionType === 'auto') {
             amountDisplay = `${currentCurrencySymbol}${fund.emiAmount ? fund.emiAmount.toFixed(2) : '0.00'}`;
             bottomText = `Auto-Deduct`;
-        } else { // Manual Expense or Personal Expense (if displayed here)
+        } else {
             amountDisplay = `${currentCurrencySymbol}${fund.balance ? fund.balance.toFixed(2) : '0.00'}`;
         }
 
@@ -1777,7 +1866,7 @@ function render() {
     if (loanEmiFundsDiv) {
         if (loanEmiCategories.length > 0) {
             loanEmiCategories.forEach((cat) => {
-                const actualIndex = categories.findIndex(f => f.id === cat.id || (!f.id && !cat.id && f.name === cat.name)); // Match by ID or fallback to name
+                const actualIndex = categories.findIndex(f => f.id === cat.id || (!f.id && !cat.id && f.name === cat.name));
                 if (actualIndex !== -1) loanEmiFundsDiv.appendChild(renderFundAsTablet(cat, actualIndex));
             });
         } else {
@@ -1788,7 +1877,7 @@ function render() {
     if (dailyExpenseFundsDiv) {
         if (dailyExpenseCategories.length > 0) {
             dailyExpenseCategories.forEach((cat) => {
-                const actualIndex = categories.findIndex(f => f.id === cat.id || (!f.id && !cat.id && f.name === cat.name)); // Match by ID or fallback to name
+                const actualIndex = categories.findIndex(f => f.id === cat.id || (!f.id && !cat.id && f.name === cat.name));
                 if (actualIndex !== -1) dailyExpenseFundsDiv.appendChild(renderFundAsTablet(cat, actualIndex));
             });
         } else {
@@ -1799,7 +1888,7 @@ function render() {
     if (investmentFundsDiv) {
         if (investmentCategories.length > 0) {
             investmentCategories.forEach((cat) => {
-                const actualIndex = categories.findIndex(f => f.id === cat.id || (!f.id && !cat.id && f.name === cat.name)); // Match by ID or fallback to name
+                const actualIndex = categories.findIndex(f => f.id === cat.id || (!f.id && !cat.id && f.name === cat.name));
                 if (actualIndex !== -1) investmentFundsDiv.appendChild(renderFundAsTablet(cat, actualIndex));
             });
         } else {
@@ -1807,28 +1896,21 @@ function render() {
         }
     }
     
-    // Populate dropdowns
-if (paySelect) { // Ensure paySelect exists
-        // It's good practice to clear the select box before populating
-        paySelect.innerHTML = ''; 
-
+    if (paySelect) {
+        paySelect.innerHTML = '';
         categories.forEach((cat, index) => {
-            // Condition to include manual expense and manual investment funds
             if (
                 (cat.type === 'expense' && cat.deductionType === 'manual') || 
                 (cat.type === 'investment' && cat.deductionType === 'manual')
             ) {
-                // Check if the current category is 'Wallet' to make it the default
                 const isSelected = cat.name === 'Wallet' ? 'selected' : '';
-                
                 paySelect.innerHTML += `<option value='${index}' ${isSelected}>${cat.name} (${currentCurrencySymbol}${cat.balance.toFixed(2)})</option>`;
             }
         });
     }
     
-    if (transferFromSelect && transferToSelect) { // Ensure these selects exist
+    if (transferFromSelect && transferToSelect) {
         categories.forEach((cat, index) => {
-            // Current logic for transfers (expenses only, no auto-deduct, no personal) is likely fine
             if (cat.type === 'expense' && cat.deductionType === 'manual' && !cat.isPersonal) { 
                 transferFromSelect.innerHTML += `<option value='${index}'>${cat.name} (${currentCurrencySymbol}${cat.balance.toFixed(2)})</option>`;
                 transferToSelect.innerHTML += `<option value='${index}'>${cat.name} (${currentCurrencySymbol}${cat.balance.toFixed(2)})</option>`;
@@ -1836,7 +1918,7 @@ if (paySelect) { // Ensure paySelect exists
         });
     }
 
-    const totalSpent = categories.reduce((sum, cat) => sum + (cat.spent || 0), 0);
+    // Use the pre-calculated totalSpent
     if (displayTotalExpensesSpan) displayTotalExpensesSpan.textContent = totalSpent.toFixed(2);
     if (totalBalanceSpan) totalBalanceSpan.textContent = (monthlyIncome - totalSpent).toFixed(2);
 
@@ -1845,7 +1927,7 @@ if (paySelect) { // Ensure paySelect exists
     let totalInvestments = 0;
 
     categories.forEach(cat => {
-        if (cat.isPersonal) return; // Exclude personal funds from these shared summaries
+        if (cat.isPersonal) return;
         if (cat.type === 'expense') {
             if (cat.deductionType === 'auto') {
                 totalAutoDeductExpenses += (cat.spent || 0);
@@ -1866,12 +1948,10 @@ if (paySelect) { // Ensure paySelect exists
         `;
     }
 
-    // Filter out personal funds before sending to pie chart if it's meant for shared view
     const categoriesForPieChart = categories.filter(cat => !cat.isPersonal);
     renderPieChart(categoriesForPieChart); 
-    renderDashboardGauges(); // This also uses the main 'categories' which might include personal ones if not filtered.
-                             // Consider if gauges should reflect personal spending or only shared. Assuming shared for now.
-    checkAndAddNotifications(); // This might need adjustment if notifications are based on personal funds too.
+    renderDashboardGauges();
+    checkAndAddNotifications();
 }
 
     function renderPieChart(categories) {
@@ -1931,7 +2011,7 @@ if (paySelect) { // Ensure paySelect exists
     async function setMonthlyIncome(incomeFromBot = null) {
         const incomeInput = document.getElementById('monthlyIncomeInput');
         const income = incomeFromBot !== null ? parseFloat(incomeFromBot) : parseFloat(incomeInput.value);
-        const currentMonthData = getCurrentMonthData();
+        const currentMonthData = getCurrentCycleData();
         const currentCurrencySymbol = currencySymbols[appSettings.currency];
 
         if (isNaN(income) || income < 0) {
@@ -2025,7 +2105,7 @@ async function createFundFromModal(fundDetailsFromBot = null) {
     
     // Income check and auto-deduct details are only relevant for non-personal funds
     if (fundType !== 'personal_expense') {
-        const mainCurrentMonthData = getCurrentMonthData(); // For checking income
+        const mainCurrentMonthData = getCurrentCycleData(); // For checking income
         if (mainCurrentMonthData.income <= 0 && !fundDetailsFromBot) {
             await showAlert('Please set your monthly income first before creating a shared/investment fund.', 'Set Income Required');
             highlightElement('monthlyIncomeInput', 4000);
@@ -2086,7 +2166,7 @@ async function createFundFromModal(fundDetailsFromBot = null) {
     };
     
     if (!newFund.isDefaultWallet && newFund.initialBalance > 0) {
-    const mainCurrentMonthData = getCurrentMonthData(); // Ensure current month data is fresh
+    const mainCurrentMonthData = getCurrentCycleData(); // Ensure current month data is fresh
     let walletFund = mainCurrentMonthData.categories.find(cat => cat.isDefaultWallet);
     if (walletFund) {
         if (walletFund.balance >= newFund.initialBalance) {
@@ -2147,7 +2227,7 @@ async function createFundFromModal(fundDetailsFromBot = null) {
             return false;
         }
     } else {
-        const mainCurrentMonthData = getCurrentMonthData();
+        const mainCurrentMonthData = getCurrentCycleData();
         targetCategoriesArray = mainCurrentMonthData.categories;
         targetHistoryArray = mainCurrentMonthData.history; // Main history is handled by global addToHistory
         historyTransactionType = 'fund_creation';
@@ -2237,7 +2317,7 @@ async function createFundFromModal(fundDetailsFromBot = null) {
 
 
  async function deleteFundFromEditModal() {
-    const currentMonthData = getCurrentMonthData(); // Ensures 'Wallet' fund exists if needed
+    const currentMonthData = getCurrentCycleData(); // Ensures 'Wallet' fund exists if needed
     const fundNameToDelete = document.getElementById('editingFundNameOriginal').value; // Get the original name
 
     const fundIndexToDelete = currentMonthData.categories.findIndex(cat => cat.name === fundNameToDelete);
@@ -2531,7 +2611,7 @@ async function processScannedUpiData(upiUrl) {
     // Clean up modal visuals. The scanner itself was commanded to stop in qrCodeSuccessCallback.
     closeQrScannerModalVisualsOnly(); 
 
-    const currentMonthData = getCurrentMonthData();
+    const currentMonthData = getCurrentCycleData();
     const amountInput = document.getElementById('payAmount');
     const amount = parseFloat(amountInput.value);
     const currentCurrencySymbol = currencySymbols[appSettings.currency];
@@ -2638,7 +2718,7 @@ function qrCodeErrorCallback(errorMessage) {
 async function handlePay(payDetailsFromBot = null) {
     const payCategorySelect = document.getElementById('payCategory');
     const amountInput = document.getElementById('payAmount');
-    const currentMonthData = getCurrentMonthData();
+    const currentMonthData = getCurrentCycleData();
     const currentCurrencySymbol = currencySymbols[appSettings.currency];
 
     // Get selected payment method
@@ -2744,7 +2824,7 @@ async function handlePay(payDetailsFromBot = null) {
         const transferFromSelect = document.getElementById('transferFromCategory');
         const transferToSelect = document.getElementById('transferToCategory');
         const amountInput = document.getElementById('transferAmount');
-        const currentMonthData = getCurrentMonthData();
+        const currentMonthData = getCurrentCycleData();
         const currentCurrencySymbol = currencySymbols[appSettings.currency];
 
         let fromFundName, toFundName, amount;
@@ -2814,15 +2894,67 @@ async function handlePay(payDetailsFromBot = null) {
         return true;
     }
 
+async function addCredit() {
+    const creditToSelect = document.getElementById('creditToCategory');
+    const amountInput = document.getElementById('creditAmount');
+    
+    const index = parseInt(creditToSelect.value);
+    const amount = parseFloat(amountInput.value);
+
+    const currentMonthData = getCurrentCycleData();
+    const currentCurrencySymbol = currencySymbols[appSettings.currency];
+
+    // --- Validation ---
+    if (isNaN(index) || index < 0 || !currentMonthData.categories || index >= currentMonthData.categories.length) {
+        await showAlert('Please select a valid fund to credit the amount to.');
+        return;
+    }
+
+    if (isNaN(amount) || amount <= 0) {
+        await showAlert('Please enter a valid, positive credit amount.');
+        amountInput.focus();
+        return;
+    }
+    
+    const fundToCredit = currentMonthData.categories[index];
+    if (!fundToCredit) {
+        await showAlert('The selected fund could not be found. Please try again.');
+        return;
+    }
+
+    // --- Core Logic ---
+    // 1. Increase the fund's balance
+    fundToCredit.balance += amount;
+
+    // 2. Increase the total income for the cycle
+    currentMonthData.income += amount;
+
+    // 3. Add to history
+    addToHistory({
+        type: 'credit_added',
+        fundName: fundToCredit.name,
+        amount: amount,
+        description: `Credited ${currentCurrencySymbol}${amount.toFixed(2)} to ${fundToCredit.name}.`
+    });
+
+    // --- Finalize ---
+    showToast(`Credited ${currentCurrencySymbol}${amount.toFixed(2)} to '${fundToCredit.name}'.`);
+    amountInput.value = ''; // Clear the input field
+    render(); // Re-render the UI to reflect all changes
+}
+
+
+
+
     function addToHistory(transaction) {
       transaction.timestamp = new Date().toISOString();
-      const currentMonthData = getCurrentMonthData();
+      const currentMonthData = getCurrentCycleData();
       currentMonthData.history.unshift(transaction);
       currentMonthData.history = currentMonthData.history.slice(0, 50);
     }
 
     async function revertLastTransaction() {
-        const currentMonthData = getCurrentMonthData();
+        const currentMonthData = getCurrentCycleData();
         if (currentMonthData.history.length === 0) {
             await showAlert('No transactions to revert.');
             return;
@@ -3231,7 +3363,7 @@ function setupFirestoreListenerForUser(user) {
     async function resetData() {
       const confirmed = await showConfirm(`Are you sure you want to reset all funds, income, and history for ${getFullDateString(currentMonth)}? This action is irreversible.`, 'Reset Data');
       if (confirmed) {
-        const currentMonthData = getCurrentMonthData();
+        const currentMonthData = getCurrentCycleData();
         currentMonthData.income = 0;
         currentMonthData.categories = [];
         currentMonthData.history = [];
@@ -3245,6 +3377,16 @@ function setupFirestoreListenerForUser(user) {
         showToast(`All data for ${getFullDateString(currentMonth)} has been reset.`);
       }
     }
+
+
+function toggleCreditAmountSection() {
+    const section = document.getElementById('creditAmountCard');
+    if (section) {
+        section.classList.toggle('open');
+    }
+}
+
+
 
     function toggleHistory() {
       const historyDiv = document.getElementById('history');
@@ -3289,58 +3431,49 @@ function setupFirestoreListenerForUser(user) {
         }
     }
 
-async function changeMonth(delta) {
-    console.log(`changeMonth called with delta: ${delta}. Current month before change: ${getMonthYearString(currentMonth)}`);
-    currentMonth.setMonth(currentMonth.getMonth() + delta);
-    const newMonthString = getMonthYearString(currentMonth);
-    console.log(`Current month AFTER change: ${newMonthString}`);
+async function changeCycle(delta) {
+    const currentCycleInfo = getCycleStartAndEnd(currentMonth);
+    let newDateForCycle;
 
-    // Ensure data for the new month is loaded/initialized.
-    const newMonthData = getCurrentMonthData(); // This loads or initializes for 'currentMonth'
-    console.log(`Data for new month (<span class="math-inline">\{newMonthString\}\)\: fundsImported\=</span>{newMonthData.fundsImported}, emiDeducted=${newMonthData.emiDeducted}`);
+    if (delta > 0) { // Move to the next cycle
+        newDateForCycle = new Date(currentCycleInfo.end);
+        newDateForCycle.setDate(newDateForCycle.getDate() + 1); // Day after the current cycle ends
+    } else { // Move to the previous cycle
+        newDateForCycle = new Date(currentCycleInfo.start);
+        newDateForCycle.setDate(newDateForCycle.getDate() - 1); // Day before the current cycle starts
+    }
+    
+    currentMonth.setTime(newDateForCycle.getTime());
 
+    const newCycleData = getCurrentCycleData();
+
+    // The auto-deduction and auto-import logic remains relevant
     const today = new Date();
-    const isViewingCurrentRealMonth = currentMonth.getFullYear() === today.getFullYear() &&
-                                currentMonth.getMonth() === today.getMonth();
-    const isFirstDayOfCurrentRealMonth = isViewingCurrentRealMonth && today.getDate() === 1;
+    const isViewingCurrentRealCycle = today >= getCycleStartAndEnd(currentMonth).start && today <= getCycleStartAndEnd(currentMonth).end;
 
-    if (delta > 0) { // Moving to Next Month
-        // Process EMIs for the new month if not already done.
-        if (!newMonthData.emiDeducted) {
-            console.log("Calling autoDeductEmiForCurrentMonth for the new month:", newMonthString);
-            await autoDeductEmiForCurrentMonth();
-        }
-        // Auto-import funds if we are landing on the *actual current month* for the first time (e.g., app opened on 1st of month).
-        // This typically shouldn't run when just clicking "Next Month" to a future date unless that date is today.
-        if (isFirstDayOfCurrentRealMonth && !newMonthData.fundsImported) {
-            console.log("It's the 1st of the current real month, and funds not imported. Attempting auto-import for:", newMonthString);
-            await autoImportFundsForNewMonth(); // This function calls render() internally
-        }
-    } else if (delta < 0) { // Moving to Previous Month
-        // No special processing typically needed other than rendering.
-        console.log("Moving to previous month:", newMonthString);
+    if (delta > 0 && !newCycleData.emiDeducted) {
+        await autoDeductEmiForCurrentMonth();
     }
 
-    // Always render the new month's state at the end of changeMonth.
-    // This ensures the UI updates even if the async functions above didn't make changes that triggered their own render,
-    // or if no async functions were called (e.g., moving to a previous month).
-    console.log("Final render call in changeMonth for:", newMonthString);
+    if (isViewingCurrentRealCycle && !newCycleData.fundsImported) {
+        await autoImportFundsForNewMonth();
+    }
+    
     render();
-    console.log("changeMonth finished for:", newMonthString);
-    console.log("Final render call in changeMonth for:", newMonthString);
-    render(); // This will update data models
 
-    // If the daily bar chart is visible, re-render it for the new month's data
     if (document.getElementById('dailyExpensesGraphContainer').style.display !== 'none') {
         renderDailyBarChart();
     }
-    console.log("changeMonth finished for:", newMonthString);
 }
+
+
     async function autoImportFundsForNewMonth() {
-        const currentMonthData = getCurrentMonthData();
+        const currentMonthData = getCurrentCycleData();
         if (currentMonthData.fundsImported) return;
 
-        const prevMonthStr = getPreviousMonthYearString(currentMonth);
+const previousCycleDate = new Date(currentMonth);
+previousCycleDate.setDate(getCycleStartAndEnd(currentMonth).start.getDate() - 1);
+const prevMonthStr = getCycleKey(previousCycleDate); // Use the key for the log
         const prevMonthData = monthlyData[prevMonthStr];
 
         if (prevMonthData && prevMonthData.categories && prevMonthData.categories.length > 0) {
@@ -3370,48 +3503,46 @@ async function changeMonth(delta) {
         }
     }
 
-    async function manualCopyFundsFromPreviousMonth() {
-        const confirmed = await showConfirm(`Are you sure you want to copy all fund setups from the previous month to ${getFullDateString(currentMonth)}? This will overwrite any existing funds in this month.`, 'Copy Funds');
-        if (!confirmed) return;
+async function manualCopyFundsFromPreviousMonth() {
+    const confirmed = await showConfirm(`Are you sure you want to copy all fund setups from the previous cycle to the current one? This will overwrite any existing funds.`, 'Copy Funds');
+    if (!confirmed) return;
 
-        const prevMonthStr = getPreviousMonthYearString(currentMonth);
-        const prevMonthData = monthlyData[prevMonthStr];
-        const currentMonthData = getCurrentMonthData();
+    const previousCycleDate = new Date(currentMonth);
+    previousCycleDate.setDate(getCycleStartAndEnd(currentMonth).start.getDate() - 1);
+    const prevCycleKey = getCycleKey(previousCycleDate);
 
-        if (prevMonthData && prevMonthData.categories && prevMonthData.categories.length > 0) {
-            currentMonthData.categories = prevMonthData.categories.map(fund => {
-                let newFund = { ...fund };
-                newFund.balance = newFund.initialBalance;
-                if (newFund.deductionType === 'auto') {
-                    newFund.spent = newFund.emiAmount;
-                    newFund.balance -= newFund.emiAmount;
-                } else {
-                    if (newFund.type === 'investment') {
-                        newFund.spent = newFund.initialBalance;
-                    } else {
-                        newFund.spent = 0;
-                    }
-                }
-                return newFund;
-            });
-            currentMonthData.history = [];
-            currentMonthData.emiDeducted = false;
-            currentMonthData.fundsImported = true;
-            addToHistory({
-                type: 'funds_copied',
-                fromMonth: prevMonthStr,
-                description: `Funds manually copied from ${prevMonthStr}. Initial balances reset.`
-            });
-            showToast(`Funds manually copied from ${prevMonthStr}.`);
-            render();
-        } else {
-            await showAlert('No funds found in the previous month to copy.');
-        }
+    const prevMonthData = monthlyData[prevCycleKey];
+    const currentMonthData = getCurrentCycleData();
+
+    if (prevMonthData && prevMonthData.categories && prevMonthData.categories.length > 0) {
+        currentMonthData.categories = prevMonthData.categories.map(fund => {
+            let newFund = { ...fund };
+            newFund.balance = newFund.initialBalance;
+            if (newFund.deductionType === 'auto') {
+                newFund.spent = newFund.emiAmount || 0;
+                newFund.balance -= (newFund.emiAmount || 0);
+            } else {
+                newFund.spent = (newFund.type === 'investment') ? newFund.initialBalance : 0;
+            }
+            return newFund;
+        });
+        currentMonthData.history = [];
+        currentMonthData.emiDeducted = false;
+        currentMonthData.fundsImported = true;
+        addToHistory({
+            type: 'funds_copied',
+            fromMonth: prevCycleKey,
+            description: `Funds manually copied from cycle starting ${prevCycleKey}.`
+        });
+        showToast(`Funds copied from the previous cycle.`);
+        render();
+    } else {
+        await showAlert('No funds found in the previous cycle to copy.');
     }
-
+}
 
 async function autoDeductEmiForCurrentMonth() {
-    const currentMonthData = getCurrentMonthData();
+    const currentMonthData = getCurrentCycleData();
     if (currentMonthData.emiDeducted) {
         console.log("EMIs already marked as deducted for:", getMonthYearString(currentMonth));
         // If already deducted, no state change, so no immediate render needed from here.
@@ -3475,9 +3606,10 @@ async function autoDeductEmiForCurrentMonth() {
 async function exportToPdf() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    const currentMonthData = getCurrentMonthData();
+    const currentMonthData = getCurrentCycleData();
     const currentCurrencySymbol = currencySymbols[appSettings.currency] || '₹';
-    const monthYearDisplay = getFullDateString(currentMonth);
+    const monthYearDisplay = displayCycleDateRange(currentMonth);
+    doc.save(`Statement_CurrentCycle_${getCycleKey(currentMonth)}.pdf`);
     const userSelectedTimezone = appSettings.userTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
     let yPos = 15;
@@ -3867,7 +3999,7 @@ function scrollToSection(sectionId, isSwipe = false) {
                                 dailyGraphContent.style.display = 'none'; 
                             }
                         } else if (wrapperId === 'analyticsSectionWrapper' && isCurrentNewSection) { 
-                            const categoriesForPieChart = getCurrentMonthData().categories.filter(cat => !cat.isPersonal); 
+                            const categoriesForPieChart = getCurrentCycleData().categories.filter(cat => !cat.isPersonal); 
                             renderPieChart(categoriesForPieChart); 
                         } else if (wrapperId === 'settingsSectionWrapper') { 
                             const faqContent = document.getElementById('faqContentSettings'); 
@@ -3937,7 +4069,7 @@ function scrollToSection(sectionId, isSwipe = false) {
         localStorage.setItem('darkMode', isDarkMode);
         document.getElementById('darkModeToggleSwitchSettings').checked = isDarkMode;
 
-        renderPieChart(getCurrentMonthData().categories);
+        renderPieChart(getCurrentCycleData().categories);
         initializeDashboardGauges();
         renderDashboardGauges();
 
@@ -3974,8 +4106,7 @@ function updateUserTimezone() {
     showToast(`Timezone set to ${selectedTimezone}. Dates and times will use this preference.`);
     
     // If you have specific date/time elements that need immediate reformatting without a full render:
-    // document.getElementById('currentDateDisplay').textContent = getFullDateString(currentMonth); 
-    // (getFullDateString would need to be updated to use appSettings.userTimezone)
+   //  (getFullDateString would need to be updated to use appSettings.userTimezone)
 }
 
 
@@ -3998,6 +4129,26 @@ function renderUserProfile() {
         }
     });
 }
+
+
+function updateBudgetCycleStartDay() {
+    const input = document.getElementById('budgetCycleStartDayInput');
+    let day = parseInt(input.value, 10);
+
+    if (isNaN(day) || day < 1 || day > 31) {
+        showAlert("Please enter a valid day between 1 and 31.", "Invalid Day");
+        input.value = appSettings.budgetCycleStartDay; // Revert to old value
+        return;
+    }
+
+    appSettings.budgetCycleStartDay = day;
+    saveAppSettings();
+    showToast(`Budget cycle will now start on day ${day} of the month.`);
+    
+    // Re-render the UI to reflect the new cycle dates immediately
+    render();
+}
+
     function updateUserProfile() {
         userProfile.name = document.getElementById('userNameInput').value.trim();
         userProfile.email = document.getElementById('userEmailInput').value.trim();
@@ -4130,7 +4281,7 @@ async function showNextTutorialStep() {
 
 function openEditFundModal(index) {
     fundIndexToEdit = index;
-    const currentMonthData = getCurrentMonthData();
+    const currentMonthData = getCurrentCycleData();
     const fund = currentMonthData.categories[index];
 
     if (!fund) {
@@ -4181,7 +4332,7 @@ async function saveEditedFund() {
         return;
     }
 
-    const currentMonthData = getCurrentMonthData();
+    const currentMonthData = getCurrentCycleData();
     const fundToEdit = currentMonthData.categories[fundIndexToEdit];
 
     if (!fundToEdit) {
@@ -4267,7 +4418,7 @@ async function saveUnifiedEditedFund() {
         return;
     }
 
-    const currentMonthData = getCurrentMonthData(); // Ensures Wallet fund is available
+    const currentMonthData = getCurrentCycleData(); // Ensures Wallet fund is available
     const fundToEdit = currentMonthData.categories.find(cat => cat.id === currentUnifiedFundId);
     const walletFund = currentMonthData.categories.find(cat => cat.isDefaultWallet);
 
@@ -4494,7 +4645,7 @@ function addNotification(message, id, type = 'info') {
     function checkAndAddNotifications() {
         const today = new Date();
         today.setHours(0,0,0,0);
-        const currentMonthData = getCurrentMonthData();
+        const currentMonthData = getCurrentCycleData();
         const categories = currentMonthData.categories;
 
         categories.forEach(fund => {
@@ -4820,7 +4971,7 @@ function renderNotifications() {
 
     async function processBotLogic(userMessage, sentimentPrefix = "") {
         const lowerMessage = userMessage.toLowerCase();
-        const currentMonthData = getCurrentMonthData();
+        const currentMonthData = getCurrentCycleData();
         const categories = currentMonthData.categories;
         const monthlyIncome = currentMonthData.income;
         const currentCurrencySymbol = currencySymbols[appSettings.currency];
@@ -5083,7 +5234,7 @@ function renderNotifications() {
 
     function getBotResponse(userMessage) {
         const lowerMessage = userMessage.toLowerCase();
-        const currentMonthData = getCurrentMonthData();
+        const currentMonthData = getCurrentCycleData();
         const categories = currentMonthData.categories;
         const monthlyIncome = currentMonthData.income;
         const totalBalanceElement = document.getElementById('totalBalance');
@@ -5509,7 +5660,7 @@ if (howWasMyDayGraphContainer && howWasMyDayGraphToggleIcon) {
 
 
 
-
+    document.getElementById('budgetCycleStartDayInput').value = appSettings.budgetCycleStartDay;
     document.getElementById('currencySelect').value = appSettings.currency;
     document.getElementById('defaultPaymentAppSelect').value = appSettings.defaultPaymentApp;
     
@@ -5635,7 +5786,7 @@ if (howWasMyDayGraphContainer && howWasMyDayGraphToggleIcon) {
 
 
     const todayForImport = new Date();
-    const currentMonthDataForImport = getCurrentMonthData(); // getCurrentMonthData uses global monthlyData
+    const currentMonthDataForImport = getCurrentCycleData(); // getCurrentMonthData uses global monthlyData
     if (currentMonthDataForImport && todayForImport.getDate() === 1 && !currentMonthDataForImport.fundsImported) {
         autoImportFundsForNewMonth().then(() => {});
     }
