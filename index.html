@@ -11,10 +11,14 @@
         </div>
 
         <div class="card no-hover-effect month-navigation">
-            <span id="currentDateDisplay"></span> <div class="month-nav-buttons">
-                <button onclick="changeMonth(-1)" class="secondary" aria-label="Previous Month">Previous Month</button>
-                <button onclick="changeMonth(1)" class="secondary" aria-label="Next Month">Next Month</button>
-            </div>
+            <span id="currentDateDisplay"></span> 
+
+<div class="month-nav-buttons">
+    <button onclick="changeCycle(-1)" class="secondary" aria-label="Previous Cycle">Previous Cycle</button>
+    
+    <button onclick="changeCycle(1)" class="secondary" aria-label="Next Cycle">Next Cycle</button>
+</div>
+
             <div class="month-actions">
                 <button onclick="manualCopyFundsFromPreviousMonth()" class="secondary" id="copyFundsBtn" style="display:none;" aria-label="Copy Funds from Previous Month">Copy Last Month's Funds</button> </div>
         </div>
@@ -86,9 +90,32 @@
             <input type="number" id="monthlyIncomeInput" placeholder="Enter/Update monthly income" aria-label="Monthly Income Input" />
             <button onclick="setMonthlyIncome()" class="primary" aria-label="Set Monthly Income">Set Income</button>
         </div>
-       
+       <div class="card no-hover-effect" id="creditAmountCard">
+    <h4>Add Credit</h4>
+    <p class="settings-note-text">
+        Add a credit amount directly to a fund. This will also increase your total income for the cycle.
+    </p>
+    <select id="creditToCategory" aria-label="Credit to Category"></select>
+    <input type="number" id="creditAmount" placeholder="Enter credit amount" aria-label="Credit Amount" />
+    <button onclick="addCredit()" class="primary" aria-label="Add Credit">Confirm</button>
+</div>
+        <button id="toggleCreditAmountBtn" class="primary" onclick="toggleCreditAmountSection()">
+            Add Credit
+        </button>
 
- <div class="card no-hover-effect" id="transferFundsCard"> <h4>Fund Transfer</h4>
+        <div class="card no-hover-effect" id="creditAmountCard">
+            <h4>Add Credit</h4>
+            <p class="settings-note-text">
+                Add a credit amount directly to a fund. This will also increase your total income for the cycle.
+            </p>
+            <select id="creditToCategory" aria-label="Credit to Category"></select>
+            <input type="number" id="creditAmount" placeholder="Enter credit amount" aria-label="Credit Amount" />
+            <button onclick="addCredit()" class="primary" aria-label="Add Credit">Confirm</button>
+        </div>
+     
+
+        <div class="card no-hover-effect" id="transferFundsCard">
+             <h4>Fund Transfer</h4>
             <select id="transferFromCategory" aria-label="Transfer From Category"></select>
             <select id="transferToCategory" aria-label="Transfer To Category"></select>
             <input type="number" id="transferAmount" placeholder="Amount to transfer" aria-label="Transfer Amount" />
@@ -146,7 +173,13 @@
                     <option value="EUR">€ Euro (EUR)</option>
                 </select>
             </div>
-
+<div class="settings-group">
+    <label for="budgetCycleStartDayInput">Budget Cycle Start Day:</label>
+    <input type="number" id="budgetCycleStartDayInput" min="1" max="31" onchange="updateBudgetCycleStartDay()" aria-label="Budget Cycle Start Day of the Month" />
+    <p class="settings-note-text">
+        Set the day of the month your budget cycle begins (e.g., your payday).
+    </p>
+</div>
             <div class="settings-group">
                 <label for="defaultPaymentAppSelect">Default Payment App (for direct open):</label>
                 <select id="defaultPaymentAppSelect" onchange="updateDefaultPaymentApp()">
