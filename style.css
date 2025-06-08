@@ -459,7 +459,8 @@ button,
     box-sizing: border-box;
 }
 
-#logTransactionSectionCard {
+#logTransactionSectionCard,
+#creditAmountCard {
     max-height: 0;
     overflow: hidden;
     visibility: hidden;
@@ -478,7 +479,8 @@ button,
                 visibility 0s linear 0.35s;
 }
 
-#logTransactionSectionCard.open {
+#logTransactionSectionCard.open,
+#creditAmountCard.open {
     max-height: 500px; /* Adjust if content is taller */
     visibility: visible;
     opacity: 1;
@@ -495,7 +497,6 @@ button,
                 border-width 0.35s ease-in,
                 visibility 0s linear 0s;
 }
-
 
 /* Add to style.css */
 #daikoInsightsContent h5 {
@@ -832,15 +833,15 @@ body.dark-mode .total-balance { background-color: var(--card-bg); }
     display: none;
 }
 .month-navigation { 
-    margin-top: 4px; /* Added to give a little space from the total balance */
+    margin-top: 2px; /* Added to give a little space from the total balance */
     margin-bottom: 8px; 
     text-align: center; 
-    padding: 5px; /* Reduced padding to decrease height */
+    padding: 3px; /* Reduced padding to decrease height */
 }
 
-.month-navigation #currentDateDisplay { font-weight: 500; font-size: 1.2em; color: var(--text-color); display: block; margin-bottom: 12px; }
-.month-nav-buttons { display: flex; justify-content: space-between; gap: 10px; }
-.month-nav-buttons button { width: 48%; margin: 0; padding: 10px; font-size: 0.9em; }
+.month-navigation #currentDateDisplay { font-weight: 500; font-size: 1.0em; color: var(--text-color); display: block; margin-bottom: 10px; }
+.month-nav-buttons { display: flex; justify-content: space-between; gap: 8px; }
+.month-nav-buttons button { width: 48%; margin: 0; padding: 8px; font-size: 0.9em; }
 .month-actions { display: flex; gap: 10px; margin-top: 10px; }
 .month-actions button { flex: 1; margin-top: 0; font-size: 0.9em; }
 
@@ -1138,6 +1139,16 @@ body.dark-mode #logTransactionSectionCard .payment-method-options label:hover {
     margin-top: 0px;
     accent-color: var(--primary-color);
 }
+#toggleCreditAmountBtn {
+  background-image: none; /* Removes any default gradient */
+  background-color: #A8D8B9; /* A pleasant pastel green */
+  color: #1F2937; /* Dark text for good readability on a light background */
+}
+
+#toggleCreditAmountBtn:hover {
+  background-color: #97C7A8; /* A slightly darker green for the hover effect */
+}
+
 #qrScannerModal .modal-content {}
 #qrScannerView { width: 100%; max-width: 280px; height: 240px; background-color: var(--subtle-bg, #eee); margin: 0 auto 15px auto; border: 1px solid var(--border-color); border-radius: 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 #qrScannerView video { width: 100% !important; height: 100% !important; object-fit: cover; }
